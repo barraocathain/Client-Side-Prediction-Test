@@ -1,0 +1,11 @@
+* Client-Side-Prediction-Test
+An example of client-side prediction for networked games, as research and
+training for 'Spacewar!'
+
+** What is this repository for?
+I realized that the current netcode of Spacewar was fine for simply running two
+instances of the game on the same computer; but it would not hold up to
+latencies of actual networks nor would it be able to do any structured
+communication due to being entirely over UDP. I knew this when writing it, but I
+needed to learn how to do it properly first. Hence, this repository. I will be
+keeping notes on the techniques and a devlog as I come up against any issues.
