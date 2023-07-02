@@ -4,6 +4,7 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -15,7 +16,7 @@
 #include <netinet/in.h>
 #include "../cspt-message.h"
 bool keepRunning = true;
-
+const int PORT = 5200;
 struct connectionStatus
 {
 	uint8_t remainingPongs;	
@@ -26,6 +27,23 @@ void sigintHandler(int signal)
 	keepRunning = false;
 }
 
+void * networkThreadHandler(void * arguments)
+{
+	int udpSocket;
+	struct sockaddr_in serverAddress;
+	if ((udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	{
+		exit(EXIT_FAILURE);
+	}
+
+	memset(&serverAddress, 0, sizeof(serverAddress));       
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(PORT);
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
+	
+	return NULL;
+}
+
 int main(int argc, char ** argv)
 {
 	int returnValue = 0;
@@ -34,7 +52,7 @@ int main(int argc, char ** argv)
 	fd_set connectedClients;
 	struct connectionStatus clientStatus[16];
 	struct sockaddr_in serverAddress, clientAddress;
-	CsptMessage currentMessage;
+	struct CsptMessage currentMessage;
 	printf("Client-Side Prediction Test - Server Starting.\n");
 
 	// Setup the sigint handler:
@@ -152,7 +170,7 @@ int main(int argc, char ** argv)
 				if (FD_ISSET(clientSockets[index], &connectedClients))
 				{
 					// The client has sent a message, recieve it and process:
-					if ((returnValue = recv(clientSockets[index], &currentMessage, sizeof(CsptMessage), 0)) > 0)
+					if ((returnValue = recv(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0)) > 0)
 					{
 						printf("%s, %u\n", messageStrings[currentMessage.type], currentMessage.content);					
 						switch (currentMessage.type)
@@ -162,7 +180,7 @@ int main(int argc, char ** argv)
 							{
 								currentMessage.type = 0;
 								currentMessage.content = (uint8_t)random() % 16;
-								send(clientSockets[index], &currentMessage, sizeof(CsptMessage), 0);
+								send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 								break;
 							}
 							// Goodbye:
@@ -193,7 +211,7 @@ int main(int argc, char ** argv)
 						currentMessage.type = 1;
 						currentMessage.content = 0;
 						FD_CLR(clientSockets[index], &connectedClients);
-						send(clientSockets[index], &currentMessage, sizeof(CsptMessage), 0);
+						send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 						shutdown(clientSockets[index], SHUT_RDWR);
 						clientSockets[index] = 0;
 					}
@@ -208,13 +226,13 @@ int main(int argc, char ** argv)
 					{
 						currentMessage.type = 2;
 						currentMessage.content = 0;
-						send(clientSockets[index], &currentMessage, sizeof(CsptMessage), 0);
+						send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 						clientStatus[index].remainingPongs++;
 						if (clientStatus[index].remainingPongs >= 10)
 						{
 							currentMessage.type = 1;
 							currentMessage.content = 0;
-							send(clientSockets[index], &currentMessage, sizeof(CsptMessage), 0);
+							send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 							shutdown(clientSockets[index], SHUT_RDWR);
 							clientSockets[index] = 0;
 						}
@@ -228,7 +246,7 @@ int main(int argc, char ** argv)
 	{
 		currentMessage.type = 1;
 		currentMessage.content = 0;
-		send(clientSockets[index], &currentMessage, sizeof(CsptMessage), 0);
+		send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 		shutdown(clientSockets[index], SHUT_RDWR);
 		clientSockets[index] = 0;
 	}

@@ -2,11 +2,12 @@
 #define CSPT_MESSAGE_H
 #include <stdint.h>
 const char * messageStrings[] = {"HELLO", "GOODBYE", "PING", "PONG"};
-typedef struct CsptMessage
+
+struct CsptMessage
 {
 	uint8_t type;
 	uint8_t content;
-} CsptMessage;
+};
 
 /* Message Types:   
    0 - HELLO: Contents sent to client indicate a given player number.
@@ -14,4 +15,5 @@ typedef struct CsptMessage
    2 - PING: Contents indicate the missed amount of pongs.
    3 - PONG: No contents.
 */
+
 #endif

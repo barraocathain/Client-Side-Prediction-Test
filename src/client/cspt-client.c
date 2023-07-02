@@ -7,22 +7,109 @@
 #include <unistd.h>
 #include <strings.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_timer.h>
+#include "../cspt-state.h"
 #include "../cspt-message.h"
+
+void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius)
+{
+   const int32_t diameter = (radius * 2);
+
+   int32_t x = (radius - 1);
+   int32_t y = 0;
+   int32_t tx = 1;
+   int32_t ty = 1;
+   int32_t error = (tx - diameter);
+
+   while (x >= y)
+   {
+	 //  Each of the following renders an octant of the circle
+      SDL_RenderDrawPoint(renderer, centreX + x, centreY - y);
+      SDL_RenderDrawPoint(renderer, centreX + x, centreY + y);
+      SDL_RenderDrawPoint(renderer, centreX - x, centreY - y);
+      SDL_RenderDrawPoint(renderer, centreX - x, centreY + y);
+      SDL_RenderDrawPoint(renderer, centreX + y, centreY - x);
+      SDL_RenderDrawPoint(renderer, centreX + y, centreY + x);
+      SDL_RenderDrawPoint(renderer, centreX - y, centreY - x);
+      SDL_RenderDrawPoint(renderer, centreX - y, centreY + x);
+
+      if (error <= 0)
+      {
+         ++y;
+         error += ty;
+         ty += 2;
+      }
+
+      if (error > 0)
+      {
+         --x;
+         tx += 2;
+         error += (tx - diameter);
+      }
+   }
+}
+
+void * graphicsThreadHandler(void * parameters)
+{
+	struct gameState * state = (struct gameState *)parameters;
+	uint32_t rendererFlags = SDL_RENDERER_ACCELERATED;
+	
+	// Create an SDL window and rendering context in that window:
+	SDL_Window * window = SDL_CreateWindow("CSPT-Client", SDL_WINDOWPOS_CENTERED,
+										   SDL_WINDOWPOS_CENTERED, 640, 640, 0);
+	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, rendererFlags);
+	
+	// Enable resizing the window:
+	SDL_SetWindowResizable(window, SDL_TRUE);
+	state->clients[0].xPosition = 300;
+	state->clients[0].yPosition = 300;
+	
+//	while (parameters->keepRunning)
+	while (true)
+	{
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		// Clear the screen, filling it with black:
+		SDL_RenderClear(renderer);
+		
+		SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+
+		for (int index = 0; index < 16; index++)
+		{
+			if (state->clients[index].registered == true)
+			{
+				DrawCircle(renderer, (int)state->clients[index].xPosition, (int)state->clients[index].yPosition,
+						   10);
+			}
+		}
+		
+		// Present the rendered graphics:
+		SDL_RenderPresent(renderer);
+		SDL_Delay(1000/60);
+	}
+
+	return NULL;
+}
 
 int main(int argc, char ** argv)
 {
-	uint8_t currentPlayerNumber = 0;
 	int serverSocket = 0;
+	pthread_t graphicsThread;
+	struct CsptMessage currentMessage;
 	bool continueRunning = true;
-	CsptMessage currentMessage;
+	struct gameState currentState;
+	uint8_t currentPlayerNumber = 0;
 	struct sockaddr_in serverAddress;
-	
 	printf("Client-Side Prediction Test - Client Starting.\n");
 
+	bzero(&currentState, sizeof(struct gameState));
+	
 	// Give me a socket, and make sure it's working:
 	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if (serverSocket == -1)
@@ -46,8 +133,8 @@ int main(int argc, char ** argv)
 	currentMessage.type = 0;
 	currentMessage.content = 0;
 
-	send(serverSocket, &currentMessage, sizeof(CsptMessage), 0);
-	recv(serverSocket, &currentMessage, sizeof(CsptMessage), 0);
+	send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
+	recv(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
 
 	if (currentMessage.type == 0)
 	{
@@ -57,9 +144,10 @@ int main(int argc, char ** argv)
 	printf("Registered as: %u\n", currentPlayerNumber);
 	printf("%-7s | %u\n", messageStrings[currentMessage.type], currentMessage.content);
 	
+	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &currentState);
 	while (continueRunning)
 	{
-		if (recv(serverSocket, &currentMessage, sizeof(CsptMessage), 0) > 0)
+		if (recv(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0) > 0)
 		{
 			printf("%-7s | %u\n", messageStrings[currentMessage.type], currentMessage.content);
 			switch (currentMessage.type)
@@ -77,7 +165,7 @@ int main(int argc, char ** argv)
 					// Pinged, so we now must pong.
 					currentMessage.type = 3;
 					currentMessage.content = 0;
-					send(serverSocket, &currentMessage, sizeof(CsptMessage), 0);
+					send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
 					break;
 				}
 			}
