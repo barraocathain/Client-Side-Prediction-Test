@@ -2,7 +2,7 @@
 #define CSPT_STATE_H
 #include <time.h>
 #include <stdbool.h>
-
+#include <netinet/in.h>
 struct clientMovement
 {
 	double xPosition, yPosition, xVelocity, yVelocity;
@@ -19,6 +19,14 @@ struct gameState
 	time_t timestamp; 
 	struct clientMovement clients[16];
 };
+
+struct networkThreadArguments
+{
+	int * clientSockets;
+	struct gameState * state;
+};
+
+void updateInput(struct gameState * state, struct clientInput * message, struct sockaddr_in * address, int * clientSockets);
 
 void doGameTick(struct gameState * state);
 

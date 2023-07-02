@@ -60,6 +60,15 @@ void * graphicsThreadHandler(void * parameters)
 {
 	struct gameState * state = (struct gameState *)parameters;
 	uint32_t rendererFlags = SDL_RENDERER_ACCELERATED;
+	int udpSocket = 0;
+	struct sockaddr_in recieveAddress;
+
+	// Set our IP address and port. Default to localhost for testing:
+	recieveAddress.sin_family = AF_INET;
+	recieveAddress.sin_addr.s_addr = INADDR_ANY;
+	recieveAddress.sin_port = htons(5200);
+
+	udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
 	
 	// Create an SDL window and rendering context in that window:
 	SDL_Window * window = SDL_CreateWindow("CSPT-Client", SDL_WINDOWPOS_CENTERED,
@@ -70,10 +79,13 @@ void * graphicsThreadHandler(void * parameters)
 	SDL_SetWindowResizable(window, SDL_TRUE);
 	state->clients[0].xPosition = 300;
 	state->clients[0].yPosition = 300;
-	
-//	while (parameters->keepRunning)
+
+	bind(udpSocket, (struct sockaddr *)&recieveAddress, sizeof(struct sockaddr));
+
 	while (true)
 	{
+		recvfrom(udpSocket, state, sizeof(struct gameState), 0, NULL, NULL);
+		
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		// Clear the screen, filling it with black:
 		SDL_RenderClear(renderer);

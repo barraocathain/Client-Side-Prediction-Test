@@ -10,10 +10,12 @@
 #include <unistd.h>
 #include <strings.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "../cspt-state.h"
 #include "../cspt-message.h"
 bool keepRunning = true;
 const int PORT = 5200;
@@ -29,8 +31,13 @@ void sigintHandler(int signal)
 
 void * networkThreadHandler(void * arguments)
 {
+	struct networkThreadArguments * args = (struct networkThreadArguments *)arguments;
 	int udpSocket;
-	struct sockaddr_in serverAddress;
+	pthread_t networkThread;
+	struct clientInput message;
+	socklen_t clientAddressLength;
+	struct sockaddr_in clientAddress, serverAddress;
+
 	if ((udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	{
 		exit(EXIT_FAILURE);
@@ -40,6 +47,25 @@ void * networkThreadHandler(void * arguments)
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(PORT);
     serverAddress.sin_addr.s_addr = INADDR_ANY;
+
+//	bind(udpSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+	
+	printf("Started network thread.\n");
+
+	while (true)
+	{
+//		bzero(&message, sizeof(struct clientInput));
+//		recvfrom(udpSocket, &message, sizeof(struct clientInput), 0, (struct sockaddr *)&clientAddress, &clientAddressLength);
+//		updateInput(args->state, &message, &clientAddress, args->clientSockets);
+		for (int index = 0; index < 16; index++)
+		{
+			if(args->clientSockets[index] > 0)
+			{
+//				getsockname(args->clientSockets[index], (struct sockaddr *)&clientAddress, (socklen_t *)sizeof(struct sockaddr_in));
+				sendto(udpSocket, args->state, sizeof(struct gameState), 0, (struct sockaddr *)&serverAddress, (socklen_t)sizeof(struct sockaddr_in));
+			}
+		}
+	}
 	
 	return NULL;
 }
@@ -50,14 +76,23 @@ int main(int argc, char ** argv)
 	int masterSocket = 0;
 	int clientSockets[16];
 	fd_set connectedClients;
-	struct connectionStatus clientStatus[16];
-	struct sockaddr_in serverAddress, clientAddress;
+	pthread_t networkThread;
+	struct gameState currentState;
 	struct CsptMessage currentMessage;
+	struct connectionStatus clientStatus[16];
+	struct networkThreadArguments networkArguments;
+	struct sockaddr_in serverAddress, clientAddress;
+	
 	printf("Client-Side Prediction Test - Server Starting.\n");
 
 	// Setup the sigint handler:
 	signal(SIGINT, sigintHandler);
 
+	networkArguments.clientSockets = clientSockets;
+	networkArguments.state = &currentState;
+
+	pthread_create(&networkThread, NULL, networkThreadHandler, (void *)&networkArguments);
+	
 	// Setup TCP Master Socket:
 	printf("Setting up master socket... ");
 	masterSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -179,13 +214,15 @@ int main(int argc, char ** argv)
 							case 0:
 							{
 								currentMessage.type = 0;
-								currentMessage.content = (uint8_t)random() % 16;
+								currentState.clients[index].registered = true;
+								currentMessage.content = (uint8_t)index;
 								send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 								break;
 							}
 							// Goodbye:
 							case 1:
 							{
+								currentState.clients[index].registered = false;
 								FD_CLR(clientSockets[index], &connectedClients);
 								shutdown(clientSockets[index], SHUT_RDWR);
 								clientSockets[index] = 0;
@@ -238,7 +275,6 @@ int main(int argc, char ** argv)
 						}
 					}
 				}
-				printf("Waiting on pongs.\n");
 			}
 		}
 	}

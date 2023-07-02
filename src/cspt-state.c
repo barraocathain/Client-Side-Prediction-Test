@@ -1,4 +1,21 @@
 #include "cspt-state.h"
+void updateInput(struct gameState * state, struct clientInput * message, struct sockaddr_in * address, int * clientSockets)
+{
+	int index = 0;
+	struct sockaddr_in currentClientAddress;
+	for (index = 0; index < 16; index++)
+	{
+		getsockname(clientSockets[index], (struct sockaddr *)&currentClientAddress, (socklen_t *)sizeof(struct sockaddr_in));
+		if (currentClientAddress.sin_addr.s_addr == address->sin_addr.s_addr)
+		{
+			state->clients[index].leftAcceleration = message->left;
+			state->clients[index].rightAcceleration = message->right;
+			state->clients[index].upAcceleration = message->up;
+			state->clients[index].downAcceleration = message->down;
+			break;
+		}
+	}
+}
 
 void doGameTick(struct gameState * state)
 {
