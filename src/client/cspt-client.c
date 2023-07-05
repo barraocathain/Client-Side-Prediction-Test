@@ -61,12 +61,14 @@ void * graphicsThreadHandler(void * parameters)
 	struct gameState * state = (struct gameState *)parameters;
 	uint32_t rendererFlags = SDL_RENDERER_ACCELERATED;
 	int udpSocket = 0;
-	struct sockaddr_in recieveAddress;
+	struct sockaddr_in recieveAddress, serverAddress;
+	struct clientInput message;
+	message.right = true;
+	message.clientNumber = 1;
 
-	// Set our IP address and port. Default to localhost for testing:
-	recieveAddress.sin_family = AF_INET;
-	recieveAddress.sin_addr.s_addr = INADDR_ANY;
-	recieveAddress.sin_port = htons(5200);
+	serverAddress.sin_family = AF_INET;
+	serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+	serverAddress.sin_port = htons(5200);
 
 	udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
 	
@@ -77,15 +79,19 @@ void * graphicsThreadHandler(void * parameters)
 	
 	// Enable resizing the window:
 	SDL_SetWindowResizable(window, SDL_TRUE);
-	state->clients[0].xPosition = 300;
-	state->clients[0].yPosition = 300;
+//	state->clients[0].xPosition = 300;
+//	state->clients[0].yPosition = 300;
 
-	bind(udpSocket, (struct sockaddr *)&recieveAddress, sizeof(struct sockaddr));
-
+	struct timeval tv;
+	tv.tv_sec = 0;
+	tv.tv_usec = 100000;
+	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv));
+	
 	while (true)
 	{
-		recvfrom(udpSocket, state, sizeof(struct gameState), 0, NULL, NULL);
-		
+		sendto(udpSocket, &message, sizeof(struct clientInput), MSG_CONFIRM, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+		recvfrom(udpSocket, state, sizeof(struct gameState), MSG_WAITALL, NULL, NULL);
+
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		// Clear the screen, filling it with black:
 		SDL_RenderClear(renderer);
@@ -96,14 +102,13 @@ void * graphicsThreadHandler(void * parameters)
 		{
 			if (state->clients[index].registered == true)
 			{
-				DrawCircle(renderer, (int)state->clients[index].xPosition, (int)state->clients[index].yPosition,
+				DrawCircle(renderer, (int)state->clients[index].yPosition, (int)state->clients[index].xPosition,
 						   10);
 			}
 		}
 		
 		// Present the rendered graphics:
 		SDL_RenderPresent(renderer);
-		SDL_Delay(1000/60);
 	}
 
 	return NULL;
@@ -115,13 +120,11 @@ int main(int argc, char ** argv)
 	pthread_t graphicsThread;
 	struct CsptMessage currentMessage;
 	bool continueRunning = true;
-	struct gameState currentState;
+	struct gameState * currentState = calloc(1, sizeof(struct gameState));
 	uint8_t currentPlayerNumber = 0;
 	struct sockaddr_in serverAddress;
 	printf("Client-Side Prediction Test - Client Starting.\n");
 
-	bzero(&currentState, sizeof(struct gameState));
-	
 	// Give me a socket, and make sure it's working:
 	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if (serverSocket == -1)
@@ -156,7 +159,7 @@ int main(int argc, char ** argv)
 	printf("Registered as: %u\n", currentPlayerNumber);
 	printf("%-7s | %u\n", messageStrings[currentMessage.type], currentMessage.content);
 	
-	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &currentState);
+	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, currentState);
 	while (continueRunning)
 	{
 		if (recv(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0) > 0)

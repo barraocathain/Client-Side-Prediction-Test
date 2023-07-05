@@ -11,6 +11,7 @@ struct clientMovement
 
 struct clientInput
 {
+	int clientNumber;
 	bool left, right, up, down;
 };
 
@@ -26,7 +27,7 @@ struct networkThreadArguments
 	struct gameState * state;
 };
 
-void updateInput(struct gameState * state, struct clientInput * message, struct sockaddr_in * address, int * clientSockets);
+void updateInput(struct gameState * state, struct clientInput * message);
 
 void doGameTick(struct gameState * state);
 

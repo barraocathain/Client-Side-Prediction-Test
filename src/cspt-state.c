@@ -1,20 +1,14 @@
 #include "cspt-state.h"
-void updateInput(struct gameState * state, struct clientInput * message, struct sockaddr_in * address, int * clientSockets)
+void updateInput(struct gameState * state, struct clientInput * message)
 {
-	int index = 0;
-	struct sockaddr_in currentClientAddress;
-	for (index = 0; index < 16; index++)
+	if(message->clientNumber < 16 && message->clientNumber >= 0)
 	{
-		getsockname(clientSockets[index], (struct sockaddr *)&currentClientAddress, (socklen_t *)sizeof(struct sockaddr_in));
-		if (currentClientAddress.sin_addr.s_addr == address->sin_addr.s_addr)
-		{
-			state->clients[index].leftAcceleration = message->left;
-			state->clients[index].rightAcceleration = message->right;
-			state->clients[index].upAcceleration = message->up;
-			state->clients[index].downAcceleration = message->down;
-			break;
-		}
+		state->clients[message->clientNumber].leftAcceleration = message->left;
+		state->clients[message->clientNumber].rightAcceleration = message->right;
+		state->clients[message->clientNumber].upAcceleration = message->up;
+		state->clients[message->clientNumber].downAcceleration = message->down;		
 	}
+
 }
 
 void doGameTick(struct gameState * state)
@@ -27,19 +21,19 @@ void doGameTick(struct gameState * state)
 			// Calculate acceleration:
 			if (state->clients[index].leftAcceleration)
 			{
-				state->clients[index].xVelocity -= 0.1;
+				state->clients[index].xVelocity -= 0.5;
 			}
 			if (state->clients[index].rightAcceleration)
 			{
-				state->clients[index].xVelocity += 0.1;
+				state->clients[index].xVelocity += 0.5;
 			}
 			if (state->clients[index].upAcceleration)
 			{
-				state->clients[index].yVelocity += 0.1;
+				state->clients[index].yVelocity += 0.5;
 			}
 			if (state->clients[index].downAcceleration)
 			{
-				state->clients[index].yVelocity += 0.1;
+				state->clients[index].yVelocity += 0.5;
 			}
 			if (!state->clients[index].leftAcceleration && !state->clients[index].rightAcceleration)
 			{
@@ -51,21 +45,21 @@ void doGameTick(struct gameState * state)
 			}
 
 			// Clamp speed:
-			if (state->clients[index].xVelocity > 10)
+			if (state->clients[index].xVelocity > 15)
 			{
-				state->clients[index].xVelocity = 10;
+				state->clients[index].xVelocity = 15;
 			}
-			if (state->clients[index].xVelocity < -10)
+			if (state->clients[index].xVelocity < -15)
 			{
-				state->clients[index].xVelocity = -10;
+				state->clients[index].xVelocity = -15;
 			}
-			if (state->clients[index].yVelocity > 10)
+			if (state->clients[index].yVelocity > 15)
 			{
-				state->clients[index].yVelocity = 10;
+				state->clients[index].yVelocity = 15;
 			}
-			if (state->clients[index].yVelocity < -10)
+			if (state->clients[index].yVelocity < -15)
 			{
-				state->clients[index].yVelocity = -10;
+				state->clients[index].yVelocity = -15;
 			}
 			
 			// Do movement:

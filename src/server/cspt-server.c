@@ -31,7 +31,6 @@ void sigintHandler(int signal)
 
 void * networkThreadHandler(void * arguments)
 {
-	struct networkThreadArguments * args = (struct networkThreadArguments *)arguments;
 	int udpSocket;
 	pthread_t networkThread;
 	struct clientInput message;
@@ -45,26 +44,21 @@ void * networkThreadHandler(void * arguments)
 
 	memset(&serverAddress, 0, sizeof(serverAddress));       
     serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(PORT);
+    serverAddress.sin_port = htons(5200);
     serverAddress.sin_addr.s_addr = INADDR_ANY;
 
-//	bind(udpSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+	bind(udpSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
 	
 	printf("Started network thread.\n");
-
+	socklen_t test = sizeof(clientAddress);
 	while (true)
 	{
-//		bzero(&message, sizeof(struct clientInput));
-//		recvfrom(udpSocket, &message, sizeof(struct clientInput), 0, (struct sockaddr *)&clientAddress, &clientAddressLength);
-//		updateInput(args->state, &message, &clientAddress, args->clientSockets);
-		for (int index = 0; index < 16; index++)
-		{
-			if(args->clientSockets[index] > 0)
-			{
-//				getsockname(args->clientSockets[index], (struct sockaddr *)&clientAddress, (socklen_t *)sizeof(struct sockaddr_in));
-				sendto(udpSocket, args->state, sizeof(struct gameState), 0, (struct sockaddr *)&serverAddress, (socklen_t)sizeof(struct sockaddr_in));
-			}
-		}
+		recvfrom(udpSocket, &message, sizeof(struct clientInput), MSG_WAITALL, (struct sockaddr *)&clientAddress, &test);
+		sendto(udpSocket, arguments, sizeof(struct gameState), MSG_CONFIRM,
+			   (struct sockaddr *)&clientAddress, (socklen_t)sizeof(struct sockaddr_in));
+		updateInput(arguments, &message);
+		doGameTick(arguments);
+		bzero(&message, sizeof(struct clientInput));
 	}
 	
 	return NULL;
@@ -88,10 +82,7 @@ int main(int argc, char ** argv)
 	// Setup the sigint handler:
 	signal(SIGINT, sigintHandler);
 
-	networkArguments.clientSockets = clientSockets;
-	networkArguments.state = &currentState;
-
-	pthread_create(&networkThread, NULL, networkThreadHandler, (void *)&networkArguments);
+	pthread_create(&networkThread, NULL, networkThreadHandler, &currentState);
 	
 	// Setup TCP Master Socket:
 	printf("Setting up master socket... ");
