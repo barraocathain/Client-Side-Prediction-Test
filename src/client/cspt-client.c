@@ -56,20 +56,46 @@ void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32
 	}
 }
 
-void * graphicsThreadHandler(void * parameters)
+struct threadParameters
 {
-	struct gameState * state = (struct gameState *)parameters;
-	uint32_t rendererFlags = SDL_RENDERER_ACCELERATED;
+	struct gameState * state;
+	struct clientInput * message;
+};
+	
+void * networkHandler(void * parameters)
+{
+	// 
+	struct threadParameters * arguments = parameters;
+	struct sockaddr_in serverAddress;
 	int udpSocket = 0;
-	struct sockaddr_in recieveAddress, serverAddress;
-	struct clientInput message;
-	message.clientNumber = 1;
 
+	// Point at the server:
 	serverAddress.sin_family = AF_INET;
 	serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
 	serverAddress.sin_port = htons(5200);
 
+	// Create a UDP socket to send through:
 	udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
+
+	// Configure a timeout for recieving:
+	struct timeval timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 1000;
+	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+
+	while (true)
+	{
+		// Send our input, recieve the state:
+		sendto(udpSocket, arguments->message, sizeof(struct clientInput), 0, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+		recvfrom(udpSocket, arguments->state, sizeof(struct gameState), 0, NULL, NULL);
+	}
+}
+
+void * graphicsThreadHandler(void * parameters)
+{
+	struct gameState * state = ((struct threadParameters *)parameters)->state;
+	struct clientInput * message = ((struct threadParameters *)parameters)->message;
+	uint32_t rendererFlags = SDL_RENDERER_ACCELERATED;
 	
 	// Create an SDL window and rendering context in that window:
 	SDL_Window * window = SDL_CreateWindow("CSPT-Client", SDL_WINDOWPOS_CENTERED,
@@ -78,79 +104,78 @@ void * graphicsThreadHandler(void * parameters)
 	
 	// Enable resizing the window:
 	SDL_SetWindowResizable(window, SDL_TRUE);
-//	state->clients[0].xPosition = 300;
-//	state->clients[0].yPosition = 300;
 
-	struct timeval tv;
-	tv.tv_sec = 0;
-	tv.tv_usec = 1000;
-	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv));
 	SDL_Event event;
 	while (true)
 	{
-		while( SDL_PollEvent( &event ) ){
-			switch( event.type )
+		while (SDL_PollEvent(&event))
+		{
+			switch (event.type)
 			{
-            case SDL_KEYDOWN:
-                switch( event.key.keysym.sym )
+				case SDL_KEYDOWN:
 				{
-					case SDLK_LEFT:
+					switch( event.key.keysym.sym )
 					{
-						message.left = true;
-						break;
+						case SDLK_LEFT:
+						{
+							message->left = true;
+							break;
+						}
+						case SDLK_RIGHT:
+						{
+							message->right = true;
+							break;
+						}
+						case SDLK_UP:
+						{
+							message->up = true;
+							break;
+						}
+						case SDLK_DOWN:
+						{
+							message->down = true;
+							break;
+						}
+						default:
+						{
+							break;
+						}
 					}
-					case SDLK_RIGHT:
-					{
-						message.right = true;
-						break;
-					}
-					case SDLK_UP:
-					{
-						message.up = true;
-						break;
-					}
-					case SDLK_DOWN:
-					{
-						message.down = true;
-						break;
-					}
-				default:
 					break;
-                }
-                break;
-            case SDL_KEYUP:
-                switch( event.key.keysym.sym )
+				}				
+				case SDL_KEYUP:
 				{
-					case SDLK_LEFT:
+					switch (event.key.keysym.sym)
 					{
-						message.left = false;
-						break;
+						case SDLK_LEFT:
+						{
+							message->left = false;
+							break;
+						}
+						case SDLK_RIGHT:
+						{
+							message->right = false;
+							break;
+						}
+						case SDLK_UP:
+						{
+							message->up = false;
+							break;
+						}
+						case SDLK_DOWN:
+						{
+							message->down = false;
+							break;
+						}
 					}
-					case SDLK_RIGHT:
-					{
-						message.right = false;
-						break;
-					}
-					case SDLK_UP:
-					{
-						message.up = false;
-						break;
-					}
-					case SDLK_DOWN:
-					{
-						message.down = false;
-						break;
-					}
+					break;
 				}
-                break;
-            
-            default:
-                break;
+				default:
+				{
+					break;
+				}
 			}
 		}
-
-		sendto(udpSocket, &message, sizeof(struct clientInput), 0, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
-		recvfrom(udpSocket, state, sizeof(struct gameState), 0, NULL, NULL);
 		
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		// Clear the screen, filling it with black:
@@ -162,8 +187,7 @@ void * graphicsThreadHandler(void * parameters)
 		{
 			if (state->clients[index].registered == true)
 			{
-				DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition),
-						   10);
+				DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 10);
 			}
 		}
 		
@@ -177,10 +201,11 @@ void * graphicsThreadHandler(void * parameters)
 int main(int argc, char ** argv)
 {
 	int serverSocket = 0;
-	pthread_t graphicsThread;
+	pthread_t graphicsThread, networkThread;
 	struct CsptMessage currentMessage;
 	bool continueRunning = true;
 	struct gameState * currentState = calloc(1, sizeof(struct gameState));
+	struct clientInput * clientInput = calloc(1, sizeof(struct gameState));
 	uint8_t currentPlayerNumber = 0;
 	struct sockaddr_in serverAddress;
 	printf("Client-Side Prediction Test - Client Starting.\n");
@@ -214,39 +239,47 @@ int main(int argc, char ** argv)
 	if (currentMessage.type == 0)
 	{
 		currentPlayerNumber = currentMessage.content;
+		clientInput->clientNumber = currentPlayerNumber;
 	}
 
 	printf("Registered as: %u\n", currentPlayerNumber);
 	printf("%-7s | %u\n", messageStrings[currentMessage.type], currentMessage.content);
+
+	struct threadParameters parameters;
+	parameters.message = clientInput;
+	parameters.state = currentState;
+	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &parameters);
+	pthread_create(&networkThread, NULL, networkHandler, &parameters);
 	
-	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, currentState);
 	while (continueRunning)
 	{
 		if (recv(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0) > 0)
 		{
-			printf("%-7s | %u\n", messageStrings[currentMessage.type], currentMessage.content);
 			switch (currentMessage.type)
 			{
-			case 1:
-			{
-				// We've been told to disconnect:
-				shutdown(serverSocket, SHUT_RDWR);
-				serverSocket = 0;
-				continueRunning = false;
-				break;
-			}
-			case 2:
-			{
-				// Pinged, so we now must pong.
-				currentMessage.type = 3;
-				currentMessage.content = 0;
-				send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
-				break;
-			}
+				case 1:
+				{
+					// We've been told to disconnect:
+					shutdown(serverSocket, SHUT_RDWR);
+					serverSocket = 0;
+					continueRunning = false;
+					break;
+				}
+				case 2:
+				{
+					// Pinged, so we now must pong.
+					currentMessage.type = 3;
+					currentMessage.content = 0;
+					send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
+					break;
+				}
 			}
 		}
 		else
 		{
+			currentMessage.type = 1;
+			currentMessage.content = 0;
+			send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
 			shutdown(serverSocket, SHUT_RDWR);
 			serverSocket = 0;
 			continueRunning = false;
