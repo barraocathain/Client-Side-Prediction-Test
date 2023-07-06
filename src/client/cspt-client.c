@@ -20,40 +20,40 @@
 
 void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius)
 {
-   const int32_t diameter = (radius * 2);
+	const int32_t diameter = (radius * 2);
 
-   int32_t x = (radius - 1);
-   int32_t y = 0;
-   int32_t tx = 1;
-   int32_t ty = 1;
-   int32_t error = (tx - diameter);
+	int32_t x = (radius - 1);
+	int32_t y = 0;
+	int32_t tx = 1;
+	int32_t ty = 1;
+	int32_t error = (tx - diameter);
 
-   while (x >= y)
-   {
-	 //  Each of the following renders an octant of the circle
-      SDL_RenderDrawPoint(renderer, centreX + x, centreY - y);
-      SDL_RenderDrawPoint(renderer, centreX + x, centreY + y);
-      SDL_RenderDrawPoint(renderer, centreX - x, centreY - y);
-      SDL_RenderDrawPoint(renderer, centreX - x, centreY + y);
-      SDL_RenderDrawPoint(renderer, centreX + y, centreY - x);
-      SDL_RenderDrawPoint(renderer, centreX + y, centreY + x);
-      SDL_RenderDrawPoint(renderer, centreX - y, centreY - x);
-      SDL_RenderDrawPoint(renderer, centreX - y, centreY + x);
+	while (x >= y)
+	{
+		//  Each of the following renders an octant of the circle
+		SDL_RenderDrawPoint(renderer, centreX + x, centreY - y);
+		SDL_RenderDrawPoint(renderer, centreX + x, centreY + y);
+		SDL_RenderDrawPoint(renderer, centreX - x, centreY - y);
+		SDL_RenderDrawPoint(renderer, centreX - x, centreY + y);
+		SDL_RenderDrawPoint(renderer, centreX + y, centreY - x);
+		SDL_RenderDrawPoint(renderer, centreX + y, centreY + x);
+		SDL_RenderDrawPoint(renderer, centreX - y, centreY - x);
+		SDL_RenderDrawPoint(renderer, centreX - y, centreY + x);
 
-      if (error <= 0)
-      {
-         ++y;
-         error += ty;
-         ty += 2;
-      }
+		if (error <= 0)
+		{
+			++y;
+			error += ty;
+			ty += 2;
+		}
 
-      if (error > 0)
-      {
-         --x;
-         tx += 2;
-         error += (tx - diameter);
-      }
-   }
+		if (error > 0)
+		{
+			--x;
+			tx += 2;
+			error += (tx - diameter);
+		}
+	}
 }
 
 void * graphicsThreadHandler(void * parameters)
@@ -63,7 +63,6 @@ void * graphicsThreadHandler(void * parameters)
 	int udpSocket = 0;
 	struct sockaddr_in recieveAddress, serverAddress;
 	struct clientInput message;
-	message.right = true;
 	message.clientNumber = 1;
 
 	serverAddress.sin_family = AF_INET;
@@ -74,7 +73,7 @@ void * graphicsThreadHandler(void * parameters)
 	
 	// Create an SDL window and rendering context in that window:
 	SDL_Window * window = SDL_CreateWindow("CSPT-Client", SDL_WINDOWPOS_CENTERED,
-										   SDL_WINDOWPOS_CENTERED, 640, 640, 0);
+										   SDL_WINDOWPOS_CENTERED, 600, 600, 0);
 	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, rendererFlags);
 	
 	// Enable resizing the window:
@@ -84,14 +83,75 @@ void * graphicsThreadHandler(void * parameters)
 
 	struct timeval tv;
 	tv.tv_sec = 0;
-	tv.tv_usec = 100000;
+	tv.tv_usec = 1000;
 	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv));
-	
+	SDL_Event event;
 	while (true)
 	{
-		sendto(udpSocket, &message, sizeof(struct clientInput), MSG_CONFIRM, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
-		recvfrom(udpSocket, state, sizeof(struct gameState), MSG_WAITALL, NULL, NULL);
+		while( SDL_PollEvent( &event ) ){
+			switch( event.type )
+			{
+            case SDL_KEYDOWN:
+                switch( event.key.keysym.sym )
+				{
+					case SDLK_LEFT:
+					{
+						message.left = true;
+						break;
+					}
+					case SDLK_RIGHT:
+					{
+						message.right = true;
+						break;
+					}
+					case SDLK_UP:
+					{
+						message.up = true;
+						break;
+					}
+					case SDLK_DOWN:
+					{
+						message.down = true;
+						break;
+					}
+				default:
+					break;
+                }
+                break;
+            case SDL_KEYUP:
+                switch( event.key.keysym.sym )
+				{
+					case SDLK_LEFT:
+					{
+						message.left = false;
+						break;
+					}
+					case SDLK_RIGHT:
+					{
+						message.right = false;
+						break;
+					}
+					case SDLK_UP:
+					{
+						message.up = false;
+						break;
+					}
+					case SDLK_DOWN:
+					{
+						message.down = false;
+						break;
+					}
+				}
+                break;
+            
+            default:
+                break;
+			}
+		}
 
+		sendto(udpSocket, &message, sizeof(struct clientInput), 0, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+		recvfrom(udpSocket, state, sizeof(struct gameState), 0, NULL, NULL);
+		
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		// Clear the screen, filling it with black:
 		SDL_RenderClear(renderer);
@@ -102,7 +162,7 @@ void * graphicsThreadHandler(void * parameters)
 		{
 			if (state->clients[index].registered == true)
 			{
-				DrawCircle(renderer, (int)state->clients[index].yPosition, (int)state->clients[index].xPosition,
+				DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition),
 						   10);
 			}
 		}
@@ -167,22 +227,22 @@ int main(int argc, char ** argv)
 			printf("%-7s | %u\n", messageStrings[currentMessage.type], currentMessage.content);
 			switch (currentMessage.type)
 			{
-				case 1:
-				{
-					// We've been told to disconnect:
-					shutdown(serverSocket, SHUT_RDWR);
-					serverSocket = 0;
-					continueRunning = false;
-					break;
-				}
-				case 2:
-				{
-					// Pinged, so we now must pong.
-					currentMessage.type = 3;
-					currentMessage.content = 0;
-					send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
-					break;
-				}
+			case 1:
+			{
+				// We've been told to disconnect:
+				shutdown(serverSocket, SHUT_RDWR);
+				serverSocket = 0;
+				continueRunning = false;
+				break;
+			}
+			case 2:
+			{
+				// Pinged, so we now must pong.
+				currentMessage.type = 3;
+				currentMessage.content = 0;
+				send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
+				break;
+			}
 			}
 		}
 		else

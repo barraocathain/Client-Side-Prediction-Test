@@ -51,26 +51,38 @@ void * networkThreadHandler(void * arguments)
 	
 	printf("Started network thread.\n");
 	socklen_t test = sizeof(clientAddress);
+	int returnvalue = 0;
+	bzero(arguments, sizeof(struct gameState));
 	while (true)
 	{
-		recvfrom(udpSocket, &message, sizeof(struct clientInput), MSG_WAITALL, (struct sockaddr *)&clientAddress, &test);
-		sendto(udpSocket, arguments, sizeof(struct gameState), MSG_CONFIRM,
+		recvfrom(udpSocket, &message, sizeof(struct clientInput), 0, (struct sockaddr *)&clientAddress, &test);
+		returnvalue = sendto(udpSocket, arguments, sizeof(struct gameState), 0,
 			   (struct sockaddr *)&clientAddress, (socklen_t)sizeof(struct sockaddr_in));
-		updateInput(arguments, &message);
-		doGameTick(arguments);
+		if(returnvalue > 0)
+		{
+			updateInput(arguments, &message);
+		}   
 		bzero(&message, sizeof(struct clientInput));
 	}
 	
 	return NULL;
 }
 
+void * gameThreadHandler(void * arguments)
+{
+	while(true)
+	{
+		doGameTick(arguments);
+		usleep(9000);
+	}
+}
 int main(int argc, char ** argv)
 {
 	int returnValue = 0;
 	int masterSocket = 0;
 	int clientSockets[16];
 	fd_set connectedClients;
-	pthread_t networkThread;
+	pthread_t networkThread, gameThread;
 	struct gameState currentState;
 	struct CsptMessage currentMessage;
 	struct connectionStatus clientStatus[16];
@@ -83,6 +95,7 @@ int main(int argc, char ** argv)
 	signal(SIGINT, sigintHandler);
 
 	pthread_create(&networkThread, NULL, networkThreadHandler, &currentState);
+	pthread_create(&gameThread, NULL, gameThreadHandler, &currentState);
 	
 	// Setup TCP Master Socket:
 	printf("Setting up master socket... ");
@@ -206,6 +219,10 @@ int main(int argc, char ** argv)
 							{
 								currentMessage.type = 0;
 								currentState.clients[index].registered = true;
+								currentState.clients[index].xPosition = 300;
+								currentState.clients[index].yPosition = 300;
+								currentState.clients[index].xVelocity = 0;
+								currentState.clients[index].yVelocity = 0;
 								currentMessage.content = (uint8_t)index;
 								send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 								break;
@@ -280,3 +297,4 @@ int main(int argc, char ** argv)
 	shutdown(masterSocket, SHUT_RDWR);	
 	return 0;
 }
+
