@@ -20,31 +20,50 @@ void doGameTick(struct gameState * state)
 		// Calculate acceleration:
 		if (state->clients[index].leftAcceleration)
 		{
-			state->clients[index].xVelocity -= 0.1;
+			state->clients[index].xVelocity -= 0.5;
 		}
 		if (state->clients[index].rightAcceleration)
 		{
-			state->clients[index].xVelocity += 0.1;
+			state->clients[index].xVelocity += 0.5;
+		}
+		if (!state->clients[index].leftAcceleration && !state->clients[index].rightAcceleration)
+		{
+			state->clients[index].xVelocity *= 0.9;			
 		}
 		if (state->clients[index].upAcceleration)
 		{
-			state->clients[index].yVelocity -= 0.1;
+			state->clients[index].yVelocity -= 0.5;
 		}
 		if (state->clients[index].downAcceleration)
 		{
-			state->clients[index].yVelocity += 0.1;
+			state->clients[index].yVelocity += 0.5;
 		}
-
+		if (!state->clients[index].upAcceleration && !state->clients[index].downAcceleration)
+		{
+			state->clients[index].yVelocity *= 0.9;			
+		}
 		// Do movement:
 		state->clients[index].xPosition += state->clients[index].xVelocity;
 		state->clients[index].yPosition += state->clients[index].yVelocity;
-		if(state->clients[index].xPosition > 600 || state->clients[index].xPosition < 0)
+		if(state->clients[index].xPosition > 1000)
 		{
-			state->clients[index].xPosition = 300;
+			state->clients[index].xPosition = 1000;
+			state->clients[index].xVelocity = 0;
 		}
-		if(state->clients[index].yPosition > 600 || state->clients[index].yPosition < 0)
+		if(state->clients[index].xPosition < 0)
 		{
-			state->clients[index].yPosition = 300;
+			state->clients[index].xPosition = 0;
+			state->clients[index].xVelocity = 0;
+		}
+		if(state->clients[index].yPosition > 1000)
+		{
+			state->clients[index].yPosition = 1000;
+			state->clients[index].yVelocity = 0;
+		}
+		if(state->clients[index].yPosition < 0)
+		{
+			state->clients[index].yPosition = 0;
+			state->clients[index].yVelocity = 0;
 		}
 	}
 }

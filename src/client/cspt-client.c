@@ -91,6 +91,15 @@ void * networkHandler(void * parameters)
 	}
 }
 
+void * gameThreadHandler(void * arguments)
+{
+	while (true)
+	{
+		doGameTick(arguments);
+		usleep(15625);
+	}
+}
+
 void * graphicsThreadHandler(void * parameters)
 {
 	struct gameState * state = ((struct threadParameters *)parameters)->state;
@@ -201,7 +210,7 @@ void * graphicsThreadHandler(void * parameters)
 int main(int argc, char ** argv)
 {
 	int serverSocket = 0;
-	pthread_t graphicsThread, networkThread;
+	pthread_t graphicsThread, networkThread, gameThread;
 	struct CsptMessage currentMessage;
 	bool continueRunning = true;
 	struct gameState * currentState = calloc(1, sizeof(struct gameState));
@@ -249,6 +258,7 @@ int main(int argc, char ** argv)
 	parameters.message = clientInput;
 	parameters.state = currentState;
 	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &parameters);
+	pthread_create(&gameThread, NULL, gameThreadHandler, currentState);
 	pthread_create(&networkThread, NULL, networkHandler, &parameters);
 	
 	while (continueRunning)

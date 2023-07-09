@@ -70,10 +70,10 @@ void * networkThreadHandler(void * arguments)
 
 void * gameThreadHandler(void * arguments)
 {
-	while(true)
+	while (true)
 	{
 		doGameTick(arguments);
-		usleep(9000);
+		usleep(15625);
 	}
 }
 int main(int argc, char ** argv)
