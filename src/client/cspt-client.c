@@ -91,11 +91,13 @@ void * networkHandler(void * parameters)
 	}
 }
 
-void * gameThreadHandler(void * arguments)
+void * gameThreadHandler(void * parameters)
 {
+	struct threadParameters * arguments = parameters;
 	while (true)
 	{
-		doGameTick(arguments);
+		updateInput(arguments->state, arguments->message);
+		doGameTick(arguments->state);
 		usleep(15625);
 	}
 }
@@ -258,7 +260,7 @@ int main(int argc, char ** argv)
 	parameters.message = clientInput;
 	parameters.state = currentState;
 	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &parameters);
-	pthread_create(&gameThread, NULL, gameThreadHandler, currentState);
+	pthread_create(&gameThread, NULL, gameThreadHandler, &parameters);
 	pthread_create(&networkThread, NULL, networkHandler, &parameters);
 	
 	while (continueRunning)

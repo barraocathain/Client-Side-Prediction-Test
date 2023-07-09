@@ -44,6 +44,11 @@ side prediction described in the second article. I'd imagine there's still a lot
 more to deal with, but we'll see how much of a difference this makes to how it
 feels. I'll report back.
 
+** Entry 04: Whoops, little oversight!
+I didn't make the client update it's own input in the state constantly, so there
+wasn't the required "single-player" feeling in the client. Not exactly what
+we're going for, here!
+
 * Notes On Techniques:
 ** Entry 00: Where I'm Learning All This From:
 I'm using a series of articles from gabrielgambetta.com, which seem to be well
