@@ -71,7 +71,7 @@ void * networkHandler(void * parameters)
 
 	// Point at the server:
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+	serverAddress.sin_addr.s_addr = inet_addr("192.168.0.100");
 	serverAddress.sin_port = htons(5200);
 
 	// Create a UDP socket to send through:
@@ -231,7 +231,7 @@ int main(int argc, char ** argv)
   
 	// Set our IP address and port. Default to localhost for testing:
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+	serverAddress.sin_addr.s_addr = inet_addr("192.168.0.100");
 	serverAddress.sin_port = htons(5200);
   
 	// Connect to the server:

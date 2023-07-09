@@ -49,6 +49,13 @@ I didn't make the client update it's own input in the state constantly, so there
 wasn't the required "single-player" feeling in the client. Not exactly what
 we're going for, here!
 
+** Entry 05: How client side prediction performs:
+After running a basic test on my LAN, it appears as if my naive implementation
+isn't performing as expected. It's possible that just spamming the client with
+packets that aren't tied to the game tick is causing it; I'm going to change
+that. It probably should have been done that way from the start; but I didn't
+really think about that.
+
 * Notes On Techniques:
 ** Entry 00: Where I'm Learning All This From:
 I'm using a series of articles from gabrielgambetta.com, which seem to be well

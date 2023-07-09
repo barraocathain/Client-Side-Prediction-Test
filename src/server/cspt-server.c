@@ -24,6 +24,15 @@ struct connectionStatus
 	uint8_t remainingPongs;	
 };
 
+// A structure containing the "current" global state:
+struct ThreadParameters
+{	
+	struct sockaddr_in * clientAddresses;
+	struct clientInput * message;
+	struct gameState * state;
+	int * udpSocket;
+};
+   
 void sigintHandler(int signal)
 {
 	keepRunning = false;
@@ -31,13 +40,11 @@ void sigintHandler(int signal)
 
 void * networkThreadHandler(void * arguments)
 {
-	int udpSocket;
-	pthread_t networkThread;
-	struct clientInput message;
-	socklen_t clientAddressLength;
+	struct ThreadParameters args = *(struct ThreadParameters *)arguments;
+	printf("%p\n", args.clientAddresses);
 	struct sockaddr_in clientAddress, serverAddress;
 
-	if ((udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+	if ((*args.udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	{
 		exit(EXIT_FAILURE);
 	}
@@ -47,32 +54,39 @@ void * networkThreadHandler(void * arguments)
     serverAddress.sin_port = htons(5200);
     serverAddress.sin_addr.s_addr = INADDR_ANY;
 
-	bind(udpSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+	bind(*args.udpSocket, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
 	
 	printf("Started network thread.\n");
 	socklen_t test = sizeof(clientAddress);
 	int returnvalue = 0;
-	bzero(arguments, sizeof(struct gameState));
+	bzero(args.state, sizeof(struct gameState));
 	while (true)
 	{
-		recvfrom(udpSocket, &message, sizeof(struct clientInput), 0, (struct sockaddr *)&clientAddress, &test);
-		returnvalue = sendto(udpSocket, arguments, sizeof(struct gameState), 0,
-			   (struct sockaddr *)&clientAddress, (socklen_t)sizeof(struct sockaddr_in));
+		returnvalue = recvfrom(*(args.udpSocket), args.message, sizeof(struct clientInput), 0, (struct sockaddr *)&clientAddress, &test);
+		memcpy(&(args.clientAddresses[args.message->clientNumber]), &clientAddress, sizeof(struct sockaddr_in));
+		
 		if(returnvalue > 0)
 		{
-			updateInput(arguments, &message);
+			updateInput(args.state, args.message);
 		}   
-		bzero(&message, sizeof(struct clientInput));
+		bzero(args.message, sizeof(struct clientInput));
 	}
 	
 	return NULL;
 }
-
+	
 void * gameThreadHandler(void * arguments)
 {
+	struct ThreadParameters args = *(struct ThreadParameters *)arguments;
+	sleep(1);
 	while (true)
 	{
-		doGameTick(arguments);
+		doGameTick(args.state);
+		for(int index = 0; index < 16; index++)
+		{
+			sendto(*(args.udpSocket), args.state, sizeof(struct gameState), 0,
+				   (struct sockaddr *)&(args.clientAddresses[index]), (socklen_t)sizeof(struct sockaddr_in));
+		}
 		usleep(15625);
 	}
 }
@@ -82,20 +96,25 @@ int main(int argc, char ** argv)
 	int masterSocket = 0;
 	int clientSockets[16];
 	fd_set connectedClients;
-	pthread_t networkThread, gameThread;
-	struct gameState currentState;
+	struct sockaddr_in serverAddress;
 	struct CsptMessage currentMessage;
+	pthread_t networkThread, gameThread;
 	struct connectionStatus clientStatus[16];
-	struct networkThreadArguments networkArguments;
-	struct sockaddr_in serverAddress, clientAddress;
+
+	struct ThreadParameters * globalState = calloc(1, sizeof(struct ThreadParameters));
+
+	globalState->clientAddresses = calloc(16, sizeof(struct sockaddr_in));
+	globalState->message = calloc(1, sizeof(struct clientInput));
+	globalState->state = calloc(1, sizeof(struct gameState));
+	globalState->udpSocket = calloc(1, sizeof(int));
 	
 	printf("Client-Side Prediction Test - Server Starting.\n");
-
+	
 	// Setup the sigint handler:
 	signal(SIGINT, sigintHandler);
+	pthread_create(&networkThread, NULL, networkThreadHandler, globalState);
+	pthread_create(&gameThread, NULL, gameThreadHandler, globalState);
 
-	pthread_create(&networkThread, NULL, networkThreadHandler, &currentState);
-	pthread_create(&gameThread, NULL, gameThreadHandler, &currentState);
 	
 	// Setup TCP Master Socket:
 	printf("Setting up master socket... ");
@@ -218,11 +237,11 @@ int main(int argc, char ** argv)
 							case 0:
 							{
 								currentMessage.type = 0;
-								currentState.clients[index].registered = true;
-								currentState.clients[index].xPosition = 300;
-								currentState.clients[index].yPosition = 300;
-								currentState.clients[index].xVelocity = 0;
-								currentState.clients[index].yVelocity = 0;
+								globalState->state->clients[index].registered = true;
+								globalState->state->clients[index].xPosition = 300;
+								globalState->state->clients[index].yPosition = 300;
+								globalState->state->clients[index].xVelocity = 0;
+								globalState->state->clients[index].yVelocity = 0;
 								currentMessage.content = (uint8_t)index;
 								send(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0);
 								break;
@@ -230,7 +249,7 @@ int main(int argc, char ** argv)
 							// Goodbye:
 							case 1:
 							{
-								currentState.clients[index].registered = false;
+								globalState->state->clients[index].registered = false;
 								FD_CLR(clientSockets[index], &connectedClients);
 								shutdown(clientSockets[index], SHUT_RDWR);
 								clientSockets[index] = 0;
