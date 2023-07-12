@@ -62,7 +62,10 @@ void * networkThreadHandler(void * arguments)
 	while (true)
 	{
 		returnvalue = recvfrom(*(args.udpSocket), args.message, sizeof(struct clientInput), 0, (struct sockaddr *)&clientAddress, &test);
-		memcpy(&(args.clientAddresses[args.message->clientNumber]), &clientAddress, sizeof(struct sockaddr_in));
+		if (args.message->clientNumber < 16 && args.message->clientNumber > -1)
+		{
+			memcpy(&(args.clientAddresses[args.message->clientNumber]), &clientAddress, sizeof(struct sockaddr_in));
+		}
 		
 		if(returnvalue > 0)
 		{
@@ -114,8 +117,7 @@ int main(int argc, char ** argv)
 	signal(SIGINT, sigintHandler);
 	pthread_create(&networkThread, NULL, networkThreadHandler, globalState);
 	pthread_create(&gameThread, NULL, gameThreadHandler, globalState);
-
-	
+  
 	// Setup TCP Master Socket:
 	printf("Setting up master socket... ");
 	masterSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -237,8 +239,8 @@ int main(int argc, char ** argv)
 							{
 								currentMessage.type = 0;
 								globalState->state->clients[index].registered = true;
-								globalState->state->clients[index].xPosition = 300;
-								globalState->state->clients[index].yPosition = 300;
+								globalState->state->clients[index].xPosition = 256;
+								globalState->state->clients[index].yPosition = 256;
 								globalState->state->clients[index].xVelocity = 0;
 								globalState->state->clients[index].yVelocity = 0;
 								currentMessage.content = (uint8_t)index;

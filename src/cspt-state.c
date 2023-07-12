@@ -44,25 +44,21 @@ void doGameTick(struct gameState * state)
 		// Do movement:
 		state->clients[index].xPosition += state->clients[index].xVelocity;
 		state->clients[index].yPosition += state->clients[index].yVelocity;
-		if(state->clients[index].xPosition > 1000)
+		if(state->clients[index].xPosition > 512)
 		{
-			state->clients[index].xPosition = 1000;
-			state->clients[index].xVelocity = 0;
+			state->clients[index].xPosition = 0;
 		}
 		if(state->clients[index].xPosition < 0)
 		{
-			state->clients[index].xPosition = 0;
-			state->clients[index].xVelocity = 0;
+			state->clients[index].xPosition = 512;
 		}
-		if(state->clients[index].yPosition > 1000)
+		if(state->clients[index].yPosition > 512)
 		{
-			state->clients[index].yPosition = 1000;
-			state->clients[index].yVelocity = 0;
+			state->clients[index].yPosition = 0;
 		}
 		if(state->clients[index].yPosition < 0)
 		{
-			state->clients[index].yPosition = 0;
-			state->clients[index].yVelocity = 0;
+			state->clients[index].yPosition = 512;
 		}
 	}
 }
