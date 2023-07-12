@@ -3,7 +3,7 @@ An example of client-side prediction for networked games, as research and
 training for 'Spacewar!'
 
 ** What is this repository for?
-I realized that the current netcode of Spacewar was fine for simply running two
+I realized that the current net-code of Spacewar was fine for simply running two
 instances of the game on the same computer; but it would not hold up to
 latencies of actual networks nor would it be able to do any structured
 communication due to being entirely over UDP. I knew this when writing it, but I
@@ -21,7 +21,7 @@ latency issues, and must be reasonably smooth.
 
 This will provide a simple enough simulation to learn the techniques, while also
 being similar enough to "Spacewar!" so that it's not too big of a stretch to
-update that project's netcode. It may be cute to have  this be some sort of chat
+update that project's net-code. It may be cute to have  this be some sort of chat
 program, but that's another project for another day. 
 
 For now, circles moving around in an empty space that move smoothly over network
@@ -55,6 +55,13 @@ isn't performing as expected. It's possible that just spamming the client with
 packets that aren't tied to the game tick is causing it; I'm going to change
 that. It probably should have been done that way from the start; but I didn't
 really think about that.
+
+** Entry 06: Fixed it!
+Tying it to the game ticks made it much better. Packet spam was not the way to
+go, and I should have realized that had I thought about it more. I'm now going
+to work on improving the client and separating out the techniques so at the end
+just by changing preprocessor statements you'll be able to see the effects of
+each technique.
 
 * Notes On Techniques:
 ** Entry 00: Where I'm Learning All This From:

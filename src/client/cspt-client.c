@@ -18,6 +18,14 @@
 #include "../cspt-state.h"
 #include "../cspt-message.h"
 
+// A structure for binding together the shared state between threads:
+struct threadParameters
+{
+	struct gameState * state;
+	struct clientInput * message;
+	char * ipAddress;
+};
+
 void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius)
 {
 	const int32_t diameter = (radius * 2);
@@ -55,23 +63,17 @@ void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32
 		}
 	}
 }
-
-struct threadParameters
-{
-	struct gameState * state;
-	struct clientInput * message;
-};
 	
 void * networkHandler(void * parameters)
 {
-	// 
+	// Declare the needed variables for the thread:
 	struct threadParameters * arguments = parameters;
 	struct sockaddr_in serverAddress;
 	int udpSocket = 0;
 
 	// Point at the server:
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_addr.s_addr = inet_addr("192.168.0.100");
+	serverAddress.sin_addr.s_addr = inet_addr(arguments->ipAddress);
 	serverAddress.sin_port = htons(5200);
 
 	// Create a UDP socket to send through:
@@ -82,6 +84,7 @@ void * networkHandler(void * parameters)
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 1000;
 	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+	
 	struct gameState * updatedState = calloc(1, sizeof(struct gameState));
 	while (true)
 	{
@@ -134,7 +137,7 @@ void * graphicsThreadHandler(void * parameters)
 			{
 				case SDL_KEYDOWN:
 				{
-					switch( event.key.keysym.sym )
+					switch (event.key.keysym.sym)
 					{
 						case SDLK_LEFT:
 						{
@@ -196,13 +199,14 @@ void * graphicsThreadHandler(void * parameters)
 				}
 			}
 		}
-		
+		// Clear the screen, filling it with black:		
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-		// Clear the screen, filling it with black:
 		SDL_RenderClear(renderer);
-		
+
+		// Set the colour to yellow:
 		SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
 
+		// Draw all the connected clients:
 		for (int index = 0; index < 16; index++)
 		{
 			if (state->clients[index].registered == true)
@@ -213,6 +217,9 @@ void * graphicsThreadHandler(void * parameters)
 		
 		// Present the rendered graphics:
 		SDL_RenderPresent(renderer);
+
+		// Delay enough so that we only hit 144 frames:
+		SDL_Delay(1000/144);
 	}
 
 	return NULL;
@@ -221,13 +228,15 @@ void * graphicsThreadHandler(void * parameters)
 int main(int argc, char ** argv)
 {
 	int serverSocket = 0;
-	pthread_t graphicsThread, networkThread, gameThread;
-	struct CsptMessage currentMessage;
 	bool continueRunning = true;
-	struct gameState * currentState = calloc(1, sizeof(struct gameState));
-	struct clientInput * clientInput = calloc(1, sizeof(struct gameState));
 	uint8_t currentPlayerNumber = 0;
 	struct sockaddr_in serverAddress;
+	struct CsptMessage currentMessage;	
+	pthread_t graphicsThread, networkThread, gameThread;
+	struct gameState * currentState = calloc(1, sizeof(struct gameState));
+	struct clientInput * clientInput = calloc(1, sizeof(struct gameState));   
+
+	// Say hello:
 	printf("Client-Side Prediction Test - Client Starting.\n");
 
 	// Give me a socket, and make sure it's working:
@@ -237,10 +246,21 @@ int main(int argc, char ** argv)
 		printf("Socket creation failed.\n");
 		exit(EXIT_FAILURE);
 	}
-  
+
 	// Set our IP address and port. Default to localhost for testing:
+	char * ipAddress = calloc(46, sizeof(char));
+	if (argc < 1)
+	{
+		strncpy(ipAddress,"127.0.0.1", 9);
+	}
+	else
+	{
+		strncpy(ipAddress, argv[1], strlen(argv[1]));
+	}
+
+	// Create an address struct to point at the server:
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_addr.s_addr = inet_addr("192.168.0.100");
+	serverAddress.sin_addr.s_addr = inet_addr(ipAddress);
 	serverAddress.sin_port = htons(5200);
   
 	// Connect to the server:
@@ -263,14 +283,17 @@ int main(int argc, char ** argv)
 	}
 
 	printf("Registered as: %u\n", currentPlayerNumber);
-	printf("%-7s | %u\n", messageStrings[currentMessage.type], currentMessage.content);
 
+	// Configure the thread parameters:
 	struct threadParameters parameters;
 	parameters.message = clientInput;
 	parameters.state = currentState;
-	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &parameters);
+	parameters.ipAddress = ipAddress;
+
+	// Create all of our threads:
 	pthread_create(&gameThread, NULL, gameThreadHandler, &parameters);
 	pthread_create(&networkThread, NULL, networkHandler, &parameters);
+	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &parameters);
 	
 	while (continueRunning)
 	{
@@ -298,8 +321,11 @@ int main(int argc, char ** argv)
 		}
 		else
 		{
+			// Say goodbye to the server:
 			currentMessage.type = 1;
 			currentMessage.content = 0;
+
+			// Send the goodbye message and shutdown:
 			send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
 			shutdown(serverSocket, SHUT_RDWR);
 			serverSocket = 0;
