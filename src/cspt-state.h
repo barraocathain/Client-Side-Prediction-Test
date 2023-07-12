@@ -2,6 +2,7 @@
 #define CSPT_STATE_H
 #include <time.h>
 #include <stdbool.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 struct clientMovement
 {
@@ -17,7 +18,7 @@ struct clientInput
 
 struct gameState
 {
-	time_t timestamp; 
+	struct timeval timestamp; 
 	struct clientMovement clients[16];
 };
 

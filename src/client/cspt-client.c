@@ -82,12 +82,21 @@ void * networkHandler(void * parameters)
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 1000;
 	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-
+	struct gameState * updatedState = calloc(1, sizeof(struct gameState));
 	while (true)
 	{
 		// Send our input, recieve the state:
 		sendto(udpSocket, arguments->message, sizeof(struct clientInput), 0, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
-		recvfrom(udpSocket, arguments->state, sizeof(struct gameState), 0, NULL, NULL);
+		recvfrom(udpSocket, updatedState, sizeof(struct gameState), 0, NULL, NULL);
+		if(updatedState->timestamp.tv_sec > arguments->state->timestamp.tv_sec)
+		{			
+			memcpy(arguments->state, updatedState, sizeof(struct gameState));
+		}
+		else if(updatedState->timestamp.tv_sec == arguments->state->timestamp.tv_sec &&
+			updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec)
+		{
+			memcpy(arguments->state, updatedState, sizeof(struct gameState));
+		}		
 	}
 }
 

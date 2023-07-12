@@ -14,7 +14,6 @@ void updateInput(struct gameState * state, struct clientInput * message)
 
 void doGameTick(struct gameState * state)
 {
-	state->timestamp = time(NULL);
 	for (int index = 0; index < 16; index++)
 	{
 		// Calculate acceleration:

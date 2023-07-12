@@ -41,7 +41,6 @@ void sigintHandler(int signal)
 void * networkThreadHandler(void * arguments)
 {
 	struct ThreadParameters args = *(struct ThreadParameters *)arguments;
-	printf("%p\n", args.clientAddresses);
 	struct sockaddr_in clientAddress, serverAddress;
 
 	if ((*args.udpSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -82,6 +81,7 @@ void * gameThreadHandler(void * arguments)
 	while (true)
 	{
 		doGameTick(args.state);
+		gettimeofday(&args.state->timestamp, NULL);
 		for(int index = 0; index < 16; index++)
 		{
 			sendto(*(args.udpSocket), args.state, sizeof(struct gameState), 0,
@@ -230,7 +230,6 @@ int main(int argc, char ** argv)
 					// The client has sent a message, recieve it and process:
 					if ((returnValue = recv(clientSockets[index], &currentMessage, sizeof(struct CsptMessage), 0)) > 0)
 					{
-						printf("%s, %u\n", messageStrings[currentMessage.type], currentMessage.content);					
 						switch (currentMessage.type)
 						{
 							// Hello:
