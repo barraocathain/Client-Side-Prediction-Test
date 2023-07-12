@@ -18,6 +18,22 @@
 #include "../cspt-state.h"
 #include "../cspt-message.h"
 
+uint8_t colours[16][3] =
+{
+	{255, 255, 255},
+	{100, 176, 254},
+	{147, 122, 254},
+	{199, 119, 254},
+	{243, 106, 254},
+	{254, 110, 205},
+	{254, 130, 112},
+	{235, 159,  35},
+	{189, 191,   0},
+	{137, 217,   0},
+	{93 , 229,  48},
+	{69 , 225, 130},
+	{72 , 206, 223}
+};
 // A structure for binding together the shared state between threads:
 struct threadParameters
 {
@@ -203,14 +219,12 @@ void * graphicsThreadHandler(void * parameters)
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		SDL_RenderClear(renderer);
 
-		// Set the colour to yellow:
-		SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-
 		// Draw all the connected clients:
 		for (int index = 0; index < 16; index++)
 		{
 			if (state->clients[index].registered == true)
 			{
+				SDL_SetRenderDrawColor(renderer, colours[index][0], colours[index][1], colours[index][2], 255);
 				DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 10);
 			}
 		}
