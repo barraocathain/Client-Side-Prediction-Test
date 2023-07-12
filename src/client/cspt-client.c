@@ -138,13 +138,10 @@ void * graphicsThreadHandler(void * parameters)
 	
 	// Create an SDL window and rendering context in that window:
 	SDL_Window * window = SDL_CreateWindow("CSPT-Client", SDL_WINDOWPOS_CENTERED,
-										   SDL_WINDOWPOS_CENTERED, 600, 600, 0);
-	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, rendererFlags);
-	
-	// Enable resizing the window:
-	SDL_SetWindowResizable(window, SDL_TRUE);
-
+										   SDL_WINDOWPOS_CENTERED, 512, 512, 0);
+	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, rendererFlags);	
 	SDL_Event event;
+	
 	while (true)
 	{
 		while (SDL_PollEvent(&event))
@@ -263,9 +260,9 @@ int main(int argc, char ** argv)
 
 	// Set our IP address and port. Default to localhost for testing:
 	char * ipAddress = calloc(46, sizeof(char));
-	if (argc < 1)
+	if (argc < 2)
 	{
-		strncpy(ipAddress,"127.0.0.1", 9);
+		strncpy(ipAddress, "127.0.0.1", 10);
 	}
 	else
 	{
