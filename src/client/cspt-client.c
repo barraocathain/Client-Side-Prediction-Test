@@ -37,9 +37,10 @@ uint8_t colours[16][3] =
 // A structure for binding together the shared state between threads:
 struct threadParameters
 {
+	char * ipAddress;
+	bool * keepRunning;
 	struct gameState * state;
 	struct clientInput * message;
-	char * ipAddress;
 };
 
 void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius)
@@ -132,13 +133,13 @@ void * gameThreadHandler(void * parameters)
 
 void * graphicsThreadHandler(void * parameters)
 {
+	bool * keepRunning = ((struct threadParameters *)parameters)->keepRunning;
 	struct gameState * state = ((struct threadParameters *)parameters)->state;
 	struct clientInput * message = ((struct threadParameters *)parameters)->message;
 	uint32_t rendererFlags = SDL_RENDERER_ACCELERATED;
 	
 	// Create an SDL window and rendering context in that window:
-	SDL_Window * window = SDL_CreateWindow("CSPT-Client", SDL_WINDOWPOS_CENTERED,
-										   SDL_WINDOWPOS_CENTERED, 512, 512, 0);
+	SDL_Window * window = SDL_CreateWindow("CSPT-Client", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 512, 512, 0);
 	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, rendererFlags);	
 	SDL_Event event;
 	
@@ -206,12 +207,18 @@ void * graphicsThreadHandler(void * parameters)
 					}
 					break;
 				}
+				case SDL_QUIT:
+				{
+					*keepRunning = false;
+					break;
+				}
 				default:
 				{
 					break;
 				}
 			}
 		}
+		
 		// Clear the screen, filling it with black:		
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		SDL_RenderClear(renderer);
@@ -239,7 +246,7 @@ void * graphicsThreadHandler(void * parameters)
 int main(int argc, char ** argv)
 {
 	int serverSocket = 0;
-	bool continueRunning = true;
+	bool keepRunning = true;
 	uint8_t currentPlayerNumber = 0;
 	struct sockaddr_in serverAddress;
 	struct CsptMessage currentMessage;	
@@ -297,16 +304,17 @@ int main(int argc, char ** argv)
 
 	// Configure the thread parameters:
 	struct threadParameters parameters;
-	parameters.message = clientInput;
 	parameters.state = currentState;
+	parameters.message = clientInput;
 	parameters.ipAddress = ipAddress;
+	parameters.keepRunning = &keepRunning;
 
 	// Create all of our threads:
 	pthread_create(&gameThread, NULL, gameThreadHandler, &parameters);
 	pthread_create(&networkThread, NULL, networkHandler, &parameters);
 	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &parameters);
 	
-	while (continueRunning)
+	while (keepRunning)
 	{
 		if (recv(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0) > 0)
 		{
@@ -317,7 +325,7 @@ int main(int argc, char ** argv)
 					// We've been told to disconnect:
 					shutdown(serverSocket, SHUT_RDWR);
 					serverSocket = 0;
-					continueRunning = false;
+					keepRunning = false;
 					break;
 				}
 				case 2:
@@ -340,9 +348,19 @@ int main(int argc, char ** argv)
 			send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
 			shutdown(serverSocket, SHUT_RDWR);
 			serverSocket = 0;
-			continueRunning = false;
+			keepRunning = false;
 		}
 	}
+
+	// Say goodbye to the server:
+	currentMessage.type = 1;
+	currentMessage.content = 0;
+
+	// Send the goodbye message and shutdown:
+	send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
+	shutdown(serverSocket, SHUT_RDWR);
+	serverSocket = 0;
+	keepRunning = false;
 			
 	return 0;
 }
