@@ -17,6 +17,7 @@
 #include <SDL2/SDL_timer.h>
 #include "../cspt-state.h"
 #include "../cspt-message.h"
+#define ENABLE_CLIENT_SIDE_PREDICTION
 
 uint8_t colours[16][3] =
 {
@@ -34,6 +35,7 @@ uint8_t colours[16][3] =
 	{69 , 225, 130},
 	{72 , 206, 223}
 };
+
 // A structure for binding together the shared state between threads:
 struct threadParameters
 {
@@ -123,12 +125,14 @@ void * networkHandler(void * parameters)
 void * gameThreadHandler(void * parameters)
 {
 	struct threadParameters * arguments = parameters;
+#ifdef ENABLE_CLIENT_SIDE_PREDICTION
 	while (true)
 	{
 		updateInput(arguments->state, arguments->message);
 		doGameTick(arguments->state);
 		usleep(15625);
 	}
+#endif
 }
 
 void * graphicsThreadHandler(void * parameters)
