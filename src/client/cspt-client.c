@@ -159,21 +159,25 @@ void * graphicsThreadHandler(void * parameters)
 					{
 						case SDLK_LEFT:
 						{
+							message->tickNumber = state->tickNumber;
 							message->left = true;
 							break;
 						}
 						case SDLK_RIGHT:
 						{
+							message->tickNumber = state->tickNumber;
 							message->right = true;
 							break;
 						}
 						case SDLK_UP:
 						{
+							message->tickNumber = state->tickNumber;
 							message->up = true;
 							break;
 						}
 						case SDLK_DOWN:
 						{
+							message->tickNumber = state->tickNumber;
 							message->down = true;
 							break;
 						}
@@ -190,21 +194,25 @@ void * graphicsThreadHandler(void * parameters)
 					{
 						case SDLK_LEFT:
 						{
+							message->tickNumber = state->tickNumber;
 							message->left = false;
 							break;
 						}
 						case SDLK_RIGHT:
 						{
+							message->tickNumber = state->tickNumber;
 							message->right = false;
 							break;
 						}
 						case SDLK_UP:
 						{
+							message->tickNumber = state->tickNumber;
 							message->up = false;
 							break;
 						}
 						case SDLK_DOWN:
 						{
+							message->tickNumber = state->tickNumber;
 							message->down = false;
 							break;
 						}

@@ -14,6 +14,14 @@ void updateInput(struct gameState * state, struct clientInput * message)
 
 void doGameTick(struct gameState * state)
 {
+	if ((state->tickNumber % UINT64_MAX) == 0)
+	{
+		state->tickNumber = 0;
+	}
+	else
+	{
+		state->tickNumber++;
+	}
 	for (int index = 0; index < 16; index++)
 	{
 		// Calculate acceleration:

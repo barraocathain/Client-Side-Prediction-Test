@@ -13,11 +13,13 @@ struct clientMovement
 struct clientInput
 {
 	int clientNumber;
+	uint64_t tickNumber;
 	bool left, right, up, down;
 };
 
 struct gameState
 {
+	uint64_t tickNumber;
 	struct timeval timestamp; 
 	struct clientMovement clients[16];
 };
