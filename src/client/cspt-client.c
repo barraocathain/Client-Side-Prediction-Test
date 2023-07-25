@@ -103,19 +103,23 @@ void * networkHandler(void * parameters)
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 1000;
 	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-	
+
+	// Store the state we recieve from the network:
 	struct gameState * updatedState = calloc(1, sizeof(struct gameState));
+	
 	while (true)
 	{
 		// Send our input, recieve the state:
 		sendto(udpSocket, arguments->message, sizeof(struct clientInput), 0, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
 		recvfrom(udpSocket, updatedState, sizeof(struct gameState), 0, NULL, NULL);
+
+		// Only update the state if the given state is more recent than the current state:	   
 		if(updatedState->timestamp.tv_sec > arguments->state->timestamp.tv_sec)
 		{			
 			memcpy(arguments->state, updatedState, sizeof(struct gameState));
 		}
 		else if(updatedState->timestamp.tv_sec == arguments->state->timestamp.tv_sec &&
-			updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec)
+				updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec)
 		{
 			memcpy(arguments->state, updatedState, sizeof(struct gameState));
 		}		
@@ -125,14 +129,16 @@ void * networkHandler(void * parameters)
 void * gameThreadHandler(void * parameters)
 {
 	struct threadParameters * arguments = parameters;
-#ifdef ENABLE_CLIENT_SIDE_PREDICTION
+	
+	#ifdef ENABLE_CLIENT_SIDE_PREDICTION
 	while (true)
 	{
 		updateInput(arguments->state, arguments->message);
 		doGameTick(arguments->state);
 		usleep(15625);
 	}
-#endif
+	#endif
+	
 }
 
 void * graphicsThreadHandler(void * parameters)
@@ -240,7 +246,10 @@ void * graphicsThreadHandler(void * parameters)
 		{
 			if (state->clients[index].registered == true)
 			{
+				// Set the colour to the correct one for the client:
 				SDL_SetRenderDrawColor(renderer, colours[index][0], colours[index][1], colours[index][2], 255);
+
+				// Draw the circle:
 				DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 10);
 			}
 		}
