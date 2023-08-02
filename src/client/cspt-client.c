@@ -18,6 +18,7 @@
 #include "../cspt-state.h"
 #include "../cspt-message.h"
 #define ENABLE_CLIENT_SIDE_PREDICTION
+#define ENABLE_SERVER_RECONCILLIATION
 
 uint8_t colours[16][3] =
 {
@@ -43,6 +44,7 @@ struct threadParameters
 	bool * keepRunning;
 	struct gameState * state;
 	struct clientInput * message;
+	struct inputHistory * inputBuffer;
 };
 
 void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius)
@@ -110,18 +112,73 @@ void * networkHandler(void * parameters)
 	while (true)
 	{
 		// Send our input, recieve the state:
-		sendto(udpSocket, arguments->message, sizeof(struct clientInput), 0, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+		sendto(udpSocket, arguments->message, sizeof(struct clientInput), 0,
+			   (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
 		recvfrom(udpSocket, updatedState, sizeof(struct gameState), 0, NULL, NULL);
 
 		// Only update the state if the given state is more recent than the current state:	   
 		if(updatedState->timestamp.tv_sec > arguments->state->timestamp.tv_sec)
 		{			
 			memcpy(arguments->state, updatedState, sizeof(struct gameState));
+			#ifdef ENABLE_SERVER_RECONCILLIATION
+			// Throw away any already acknowledged inputs:
+			while (arguments->inputBuffer->start != -1 &&
+				   arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber < arguments->state->tickNumber)
+			{				
+				arguments->inputBuffer->start = (arguments->inputBuffer->start + 1) % 256;
+				if(arguments->inputBuffer->start == arguments->inputBuffer->end)
+				{
+					arguments->inputBuffer->start = -1;
+				}
+			}
+
+			uint8_t currentMessage = arguments->inputBuffer->start;
+			uint64_t lastTickNumber = arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber;
+
+			// Re-apply the currently unused messages:
+			while (currentMessage != 1 &&
+				currentMessage != arguments->inputBuffer->end)
+			{
+				updateInput(arguments->state, &arguments->inputBuffer->inputs[currentMessage]);
+				currentMessage = (currentMessage + 1) % 256;
+				if (arguments->inputBuffer->inputs[currentMessage].tickNumber != lastTickNumber)
+				{
+					doGameTick(arguments->state);
+				}
+			}
+			#endif
 		}
 		else if(updatedState->timestamp.tv_sec == arguments->state->timestamp.tv_sec &&
 				updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec)
 		{
 			memcpy(arguments->state, updatedState, sizeof(struct gameState));
+			#ifdef ENABLE_SERVER_RECONCILLIATION
+			// Throw away any already acknowledged inputs:
+			while (arguments->inputBuffer->start != -1 &&
+				   arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber < arguments->state->tickNumber)
+			{				
+				arguments->inputBuffer->start = (arguments->inputBuffer->start + 1) % 256;
+				if(arguments->inputBuffer->start == arguments->inputBuffer->end)
+				{
+					arguments->inputBuffer->start = -1;
+				}
+			}
+
+			uint8_t currentMessage = arguments->inputBuffer->start;
+			uint64_t lastTickNumber = arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber;
+
+			// Re-apply the currently unused messages:
+			while (currentMessage != 1 &&
+				currentMessage != arguments->inputBuffer->end)
+			{
+				updateInput(arguments->state, &arguments->inputBuffer->inputs[currentMessage]);
+				currentMessage = (currentMessage + 1) % 256;
+				if (arguments->inputBuffer->inputs[currentMessage].tickNumber != lastTickNumber)
+				{
+					doGameTick(arguments->state);
+				}
+			}
+			#endif
 		}		
 	}
 }
@@ -134,11 +191,23 @@ void * gameThreadHandler(void * parameters)
 	while (true)
 	{
 		updateInput(arguments->state, arguments->message);
+		#ifdef ENABLE_SERVER_RECONCILLIATION
+		if(arguments->inputBuffer->start = -1)
+		{
+			memcpy(&arguments->inputBuffer->inputs[0], arguments->message, sizeof(struct clientInput));
+			arguments->inputBuffer->start = 0;
+			arguments->inputBuffer->end = 1;
+		}
+		else
+		{
+			memcpy(&arguments->inputBuffer->inputs[arguments->inputBuffer->end], arguments->message, sizeof(struct clientInput));
+			arguments->inputBuffer->end = (arguments->inputBuffer->end + 1) % 256;
+		}		
+		#endif
 		doGameTick(arguments->state);
 		usleep(15625);
 	}
-	#endif
-	
+	#endif	
 }
 
 void * graphicsThreadHandler(void * parameters)
@@ -329,7 +398,10 @@ int main(int argc, char ** argv)
 	parameters.message = clientInput;
 	parameters.ipAddress = ipAddress;
 	parameters.keepRunning = &keepRunning;
-
+	parameters.inputBuffer = calloc(1, sizeof(struct inputHistory));
+	parameters.inputBuffer->start = -1;
+	parameters.inputBuffer->end = -1;
+	
 	// Create all of our threads:
 	pthread_create(&gameThread, NULL, gameThreadHandler, &parameters);
 	pthread_create(&networkThread, NULL, networkHandler, &parameters);

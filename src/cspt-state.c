@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <stdint.h>
 #include "cspt-state.h"
+
 void updateInput(struct gameState * state, struct clientInput * message)
 {
 	if(message->clientNumber < 16 && message->clientNumber >= 0)
@@ -49,6 +51,7 @@ void doGameTick(struct gameState * state)
 		{
 			state->clients[index].yVelocity *= 0.9;			
 		}
+		
 		// Do movement:
 		state->clients[index].xPosition += state->clients[index].xVelocity;
 		state->clients[index].yPosition += state->clients[index].yVelocity;

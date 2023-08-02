@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <sys/time.h>
 #include <netinet/in.h>
+
 struct clientMovement
 {
 	double xPosition, yPosition, xVelocity, yVelocity;
@@ -30,6 +31,12 @@ struct networkThreadArguments
 	struct gameState * state;
 };
 
+struct inputHistory
+{
+	uint8_t start, end;
+	struct clientInput inputs[256];
+};
+	
 void updateInput(struct gameState * state, struct clientInput * message);
 
 void doGameTick(struct gameState * state);
