@@ -1,5 +1,10 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdbool.h>
 #include "cspt-state.h"
 
 void updateInput(struct gameState * state, struct clientInput * message)
@@ -11,7 +16,28 @@ void updateInput(struct gameState * state, struct clientInput * message)
 		state->clients[message->clientNumber].upAcceleration = message->up;
 		state->clients[message->clientNumber].downAcceleration = message->down;		
 	}
+}
 
+void lerpStates (struct gameState * state, struct gameState * endState)
+{
+	// Create a copy of the initial state for interpolating to the final state:
+	struct gameState * startState = calloc(1, sizeof(struct gameState));
+	memcpy(startState, state, sizeof(struct gameState));
+
+	for (double progress = 0.0; progress < 1.0; progress += 0.01)
+	{	
+		for (uint8_t index = 0; index < 16; index++)
+		{
+			// Movement:
+			state->clients[index].xPosition = startState->clients[index].xPosition +
+				(progress * (endState->clients[index].xPosition - startState->clients[index].xPosition));
+			state->clients[index].yPosition = startState->clients[index].yPosition +
+				(progress * (endState->clients[index].yPosition - startState->clients[index].yPosition));
+		}
+		usleep(100);
+	}
+	free(startState);
+	memcpy(state, endState, sizeof(struct gameState));
 }
 
 void doGameTick(struct gameState * state)

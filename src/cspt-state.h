@@ -39,6 +39,8 @@ struct inputHistory
 	
 void updateInput(struct gameState * state, struct clientInput * message);
 
+void lerpStates (struct gameState * state, struct gameState * endState);
+
 void doGameTick(struct gameState * state);
 
 #endif

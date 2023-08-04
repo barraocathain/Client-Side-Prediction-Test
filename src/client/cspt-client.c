@@ -20,7 +20,7 @@
 #define ENABLE_CLIENT_SIDE_PREDICTION
 #define ENABLE_SERVER_RECONCILLIATION
 
-uint8_t colours[16][3] =
+const uint8_t colours[16][3] =
 {
 	{255, 255, 255},
 	{100, 176, 254},
@@ -117,9 +117,11 @@ void * networkHandler(void * parameters)
 		recvfrom(udpSocket, updatedState, sizeof(struct gameState), 0, NULL, NULL);
 
 		// Only update the state if the given state is more recent than the current state:	   
-		if(updatedState->timestamp.tv_sec > arguments->state->timestamp.tv_sec)
-		{			
-			memcpy(arguments->state, updatedState, sizeof(struct gameState));
+		if(updatedState->timestamp.tv_sec > arguments->state->timestamp.tv_sec ||
+		   (updatedState->timestamp.tv_sec == arguments->state->timestamp.tv_sec &&
+			updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec))
+		{		
+//			memcpy(arguments->state, updatedState, sizeof(struct gameState));
 			#ifdef ENABLE_SERVER_RECONCILLIATION
 			// Throw away any already acknowledged inputs:
 			while (arguments->inputBuffer->start != -1 &&
@@ -148,46 +150,16 @@ void * networkHandler(void * parameters)
 			}
 			#endif
 		}
-		else if(updatedState->timestamp.tv_sec == arguments->state->timestamp.tv_sec &&
-				updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec)
-		{
-			memcpy(arguments->state, updatedState, sizeof(struct gameState));
-			#ifdef ENABLE_SERVER_RECONCILLIATION
-			// Throw away any already acknowledged inputs:
-			while (arguments->inputBuffer->start != -1 &&
-				   arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber < arguments->state->tickNumber)
-			{				
-				arguments->inputBuffer->start = (arguments->inputBuffer->start + 1) % 256;
-				if(arguments->inputBuffer->start == arguments->inputBuffer->end)
-				{
-					arguments->inputBuffer->start = -1;
-				}
-			}
-
-			uint8_t currentMessage = arguments->inputBuffer->start;
-			uint64_t lastTickNumber = arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber;
-
-			// Re-apply the currently unused messages:
-			while (currentMessage != 1 &&
-				currentMessage != arguments->inputBuffer->end)
-			{
-				updateInput(arguments->state, &arguments->inputBuffer->inputs[currentMessage]);
-				currentMessage = (currentMessage + 1) % 256;
-				if (arguments->inputBuffer->inputs[currentMessage].tickNumber != lastTickNumber)
-				{
-					doGameTick(arguments->state);
-				}
-			}
-			#endif
-		}		
+		lerpStates(arguments->state, updatedState);
 	}
 }
 
 void * gameThreadHandler(void * parameters)
 {
 	struct threadParameters * arguments = parameters;
-	
+
 	#ifdef ENABLE_CLIENT_SIDE_PREDICTION
+	struct gameState * nextStep = calloc(1, sizeof(struct gameState));
 	while (true)
 	{
 		updateInput(arguments->state, arguments->message);
@@ -204,7 +176,9 @@ void * gameThreadHandler(void * parameters)
 			arguments->inputBuffer->end = (arguments->inputBuffer->end + 1) % 256;
 		}		
 		#endif
-		doGameTick(arguments->state);
+		memcpy(nextStep, arguments->state, sizeof(struct gameState));
+		doGameTick(nextStep);
+		lerpStates(arguments->state, nextStep);
 		usleep(15625);
 	}
 	#endif	
