@@ -121,7 +121,6 @@ void * networkHandler(void * parameters)
 		   (updatedState->timestamp.tv_sec == arguments->state->timestamp.tv_sec &&
 			updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec))
 		{		
-//			memcpy(arguments->state, updatedState, sizeof(struct gameState));
 			#ifdef ENABLE_SERVER_RECONCILLIATION
 			// Throw away any already acknowledged inputs:
 			while (arguments->inputBuffer->start != -1 &&
@@ -294,6 +293,13 @@ void * graphicsThreadHandler(void * parameters)
 
 				// Draw the circle:
 				DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 10);
+
+				// Draw an additional circle so we can tell ourselves apart from the rest:
+				if (index == message->clientNumber)
+				{
+					DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 5);	  
+				}
+
 			}
 		}
 		
