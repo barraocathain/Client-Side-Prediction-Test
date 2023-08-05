@@ -33,6 +33,16 @@ void lerpStates (struct gameState * state, struct gameState * endState)
 				(progress * (endState->clients[index].xPosition - startState->clients[index].xPosition));
 			state->clients[index].yPosition = startState->clients[index].yPosition +
 				(progress * (endState->clients[index].yPosition - startState->clients[index].yPosition));
+
+			// If the movement is too dramatic, just go to the new position. Stops "zooming" when teleported:
+			if (fabs(startState->clients[index].xPosition - endState->clients[index].xPosition) >= 200)
+			{
+				state->clients[index].xPosition = endState->clients[index].xPosition;
+			}
+			if (fabs(startState->clients[index].yPosition - endState->clients[index].yPosition) >= 200)
+			{
+				state->clients[index].yPosition = endState->clients[index].yPosition;
+			}
 		}
 		usleep(100);
 	}
