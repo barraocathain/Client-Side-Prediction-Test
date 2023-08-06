@@ -33,7 +33,7 @@ struct networkThreadArguments
 
 struct inputHistory
 {
-	uint8_t start, end;
+	int16_t start, end;
 	struct clientInput inputs[256];
 };
 	

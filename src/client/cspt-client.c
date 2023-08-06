@@ -1,5 +1,7 @@
-// Client-Side Prediction Test - Client
-// Barra Ó Catháin - 2023
+/* /======================================\
+   | Client-Side Prediction Test - Client |
+   | Barra Ó Catháin - 2023               |
+   \======================================/ */
 #include <netdb.h>
 #include <stdio.h>
 #include <errno.h>
@@ -17,10 +19,22 @@
 #include <SDL2/SDL_timer.h>
 #include "../cspt-state.h"
 #include "../cspt-message.h"
+
 #define ENABLE_CLIENT_SIDE_PREDICTION
 #define ENABLE_SERVER_RECONCILLIATION
 
-const uint8_t colours[16][3] =
+// A structure for binding together the shared state between threads:
+struct ClientThreadParameters
+{
+	char * ipAddress;
+	bool * keepRunning;
+	struct gameState * state;
+	struct clientInput * message;
+	struct inputHistory * inputBuffer;
+};
+
+// Seperate colours to distinguish each of the 16 possible clients:
+static const uint8_t colours[16][3] =
 {
 	{255, 255, 255},
 	{100, 176, 254},
@@ -37,17 +51,8 @@ const uint8_t colours[16][3] =
 	{72 , 206, 223}
 };
 
-// A structure for binding together the shared state between threads:
-struct threadParameters
-{
-	char * ipAddress;
-	bool * keepRunning;
-	struct gameState * state;
-	struct clientInput * message;
-	struct inputHistory * inputBuffer;
-};
-
-void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius)
+// Draws a circle based on the midpoint circle algorithm:
+void drawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32_t radius)
 {
 	const int32_t diameter = (radius * 2);
 
@@ -55,7 +60,7 @@ void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32
 	int32_t y = 0;
 	int32_t tx = 1;
 	int32_t ty = 1;
-	int32_t error = (tx - diameter);
+   	int32_t error = (tx - diameter);
 
 	while (x >= y)
 	{
@@ -84,110 +89,124 @@ void DrawCircle(SDL_Renderer * renderer, int32_t centreX, int32_t centreY, int32
 		}
 	}
 }
-	
+
 void * networkHandler(void * parameters)
 {
-	// Declare the needed variables for the thread:
-	struct threadParameters * arguments = parameters;
-	struct sockaddr_in serverAddress;
-	int udpSocket = 0;
+	// Unpack the variables passed to the thread:
+	char * ipAddress = ((struct ClientThreadParameters * )parameters)->ipAddress;
+	bool * keepRunning = ((struct ClientThreadParameters * )parameters)->keepRunning;
+	struct gameState * state = ((struct ClientThreadParameters * )parameters)->state;
+	struct clientInput * message = ((struct ClientThreadParameters * )parameters)->message;
+	struct inputHistory * inputBuffer = ((struct ClientThreadParameters * )parameters)->inputBuffer;
 
 	// Point at the server:
+	struct sockaddr_in serverAddress;
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_addr.s_addr = inet_addr(arguments->ipAddress);
+	serverAddress.sin_addr.s_addr = inet_addr(ipAddress);
 	serverAddress.sin_port = htons(5200);
 
 	// Create a UDP socket to send through:
+	int udpSocket = 0;
 	udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
 
-	// Configure a timeout for recieving:
-	struct timeval timeout;
-	timeout.tv_sec = 0;
-	timeout.tv_usec = 1000;
-	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+	// Configure a timeout for receiving:
+	struct timeval receiveTimeout;
+	receiveTimeout.tv_sec = 0;
+	receiveTimeout.tv_usec = 1000;
+	setsockopt(udpSocket, SOL_SOCKET, SO_RCVTIMEO, &receiveTimeout, sizeof(struct timeval));
 
-	// Store the state we recieve from the network:
+	// A structure to store the most recent state from the network:
 	struct gameState * updatedState = calloc(1, sizeof(struct gameState));
 	
-	while (true)
+	while (keepRunning)
 	{
 		// Send our input, recieve the state:
-		sendto(udpSocket, arguments->message, sizeof(struct clientInput), 0,
-			   (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in));
+		sendto(udpSocket, message, sizeof(struct clientInput), 0, (struct sockaddr *)&serverAddress, sizeof(struct sockaddr_in)); 
 		recvfrom(udpSocket, updatedState, sizeof(struct gameState), 0, NULL, NULL);
 
 		// Only update the state if the given state is more recent than the current state:	   
-		if(updatedState->timestamp.tv_sec > arguments->state->timestamp.tv_sec ||
-		   (updatedState->timestamp.tv_sec == arguments->state->timestamp.tv_sec &&
-			updatedState->timestamp.tv_usec > arguments->state->timestamp.tv_usec))
+		if (updatedState->timestamp.tv_sec > state->timestamp.tv_sec ||
+			(updatedState->timestamp.tv_sec == state->timestamp.tv_sec &&
+			 updatedState->timestamp.tv_usec > state->timestamp.tv_usec))
 		{		
 			#ifdef ENABLE_SERVER_RECONCILLIATION
 			// Throw away any already acknowledged inputs:
-			while (arguments->inputBuffer->start != -1 &&
-				   arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber < arguments->state->tickNumber)
+			while (inputBuffer->start != -1 && inputBuffer->inputs[inputBuffer->start].tickNumber < state->tickNumber)
 			{				
-				arguments->inputBuffer->start = (arguments->inputBuffer->start + 1) % 256;
-				if(arguments->inputBuffer->start == arguments->inputBuffer->end)
+				inputBuffer->start = (inputBuffer->start + 1) % 256;
+				if(inputBuffer->start == inputBuffer->end)
 				{
-					arguments->inputBuffer->start = -1;
+					inputBuffer->start = -1;
 				}
 			}
 
-			uint8_t currentMessage = arguments->inputBuffer->start;
-			uint64_t lastTickNumber = arguments->inputBuffer->inputs[arguments->inputBuffer->start].tickNumber;
+			uint8_t currentMessage = inputBuffer->start;
+			uint64_t lastTickNumber = inputBuffer->inputs[inputBuffer->start].tickNumber;
 
 			// Re-apply the currently unused messages:
-			while (currentMessage != 1 &&
-				currentMessage != arguments->inputBuffer->end)
+			while (currentMessage != 1 && currentMessage != inputBuffer->end)
 			{
-				updateInput(arguments->state, &arguments->inputBuffer->inputs[currentMessage]);
+				updateInput(state, &inputBuffer->inputs[currentMessage]);
 				currentMessage = (currentMessage + 1) % 256;
-				if (arguments->inputBuffer->inputs[currentMessage].tickNumber != lastTickNumber)
+
+				// When we get to the next tick in the inputs, apply a game tick:
+				if (inputBuffer->inputs[currentMessage].tickNumber != lastTickNumber)
 				{
-					doGameTick(arguments->state);
+					doGameTick(state);
 				}
-			}
+			}	
 			#endif
+			
+			// Interpolate to the new state:
+			lerpStates(state, updatedState);
 		}
-		lerpStates(arguments->state, updatedState);
 	}
+	return NULL;
 }
 
 void * gameThreadHandler(void * parameters)
 {
-	struct threadParameters * arguments = parameters;
+	// Unpack the variables passed to the thread:
+	bool * keepRunning = ((struct ClientThreadParameters * )parameters)->keepRunning;
+	struct gameState * state = ((struct ClientThreadParameters * )parameters)->state;
+	struct clientInput * message = ((struct ClientThreadParameters * )parameters)->message;
+	struct inputHistory * inputBuffer = ((struct ClientThreadParameters * )parameters)->inputBuffer;
 
 	#ifdef ENABLE_CLIENT_SIDE_PREDICTION
 	struct gameState * nextStep = calloc(1, sizeof(struct gameState));
-	while (true)
+	while (keepRunning)
 	{
-		updateInput(arguments->state, arguments->message);
+		updateInput(state, message);
+		
 		#ifdef ENABLE_SERVER_RECONCILLIATION
-		if(arguments->inputBuffer->start = -1)
+		if(inputBuffer->start == -1)
 		{
-			memcpy(&arguments->inputBuffer->inputs[0], arguments->message, sizeof(struct clientInput));
-			arguments->inputBuffer->start = 0;
-			arguments->inputBuffer->end = 1;
+			memcpy(&inputBuffer->inputs[0], message, sizeof(struct clientInput));
+			inputBuffer->start = 0;
+			inputBuffer->end = 1;
 		}
 		else
 		{
-			memcpy(&arguments->inputBuffer->inputs[arguments->inputBuffer->end], arguments->message, sizeof(struct clientInput));
-			arguments->inputBuffer->end = (arguments->inputBuffer->end + 1) % 256;
+			memcpy(&inputBuffer->inputs[inputBuffer->end], message, sizeof(struct clientInput));
+			inputBuffer->end = (inputBuffer->end + 1) % 256;
 		}		
 		#endif
-		memcpy(nextStep, arguments->state, sizeof(struct gameState));
+		
+		memcpy(nextStep, state, sizeof(struct gameState));
 		doGameTick(nextStep);
-		lerpStates(arguments->state, nextStep);
+		lerpStates(state, nextStep);
 		usleep(15625);
 	}
-	#endif	
+	#endif
+
+	return NULL;
 }
 
 void * graphicsThreadHandler(void * parameters)
 {
-	bool * keepRunning = ((struct threadParameters *)parameters)->keepRunning;
-	struct gameState * state = ((struct threadParameters *)parameters)->state;
-	struct clientInput * message = ((struct threadParameters *)parameters)->message;
+	bool * keepRunning = ((struct ClientThreadParameters *)parameters)->keepRunning;
+	struct gameState * state = ((struct ClientThreadParameters *)parameters)->state;
+	struct clientInput * message = ((struct ClientThreadParameters *)parameters)->message;
 	uint32_t rendererFlags = SDL_RENDERER_ACCELERATED;
 	
 	// Create an SDL window and rendering context in that window:
@@ -195,7 +214,7 @@ void * graphicsThreadHandler(void * parameters)
 	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, rendererFlags);	
 	SDL_Event event;
 	
-	while (true)
+	while (keepRunning)
 	{
 		while (SDL_PollEvent(&event))
 		{
@@ -292,14 +311,13 @@ void * graphicsThreadHandler(void * parameters)
 				SDL_SetRenderDrawColor(renderer, colours[index][0], colours[index][1], colours[index][2], 255);
 
 				// Draw the circle:
-				DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 10);
+				drawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 10);
 
 				// Draw an additional circle so we can tell ourselves apart from the rest:
 				if (index == message->clientNumber)
 				{
-					DrawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 5);	  
+					drawCircle(renderer, (long)(state->clients[index].xPosition), (long)(state->clients[index].yPosition), 5);	  
 				}
-
 			}
 		}
 		
@@ -319,14 +337,22 @@ int main(int argc, char ** argv)
 	bool keepRunning = true;
 	uint8_t currentPlayerNumber = 0;
 	struct sockaddr_in serverAddress;
-	struct CsptMessage currentMessage;	
-	pthread_t graphicsThread, networkThread, gameThread;
+	struct CsptMessage currentMessage;	   
 	struct gameState * currentState = calloc(1, sizeof(struct gameState));
 	struct clientInput * clientInput = calloc(1, sizeof(struct gameState));   
 
-	// Say hello:
+	// Print a welcome message:
 	printf("Client-Side Prediction Test - Client Starting.\n");
+	printf("==============================================\n");
 
+	// Print a list of enabled features:
+	#ifdef ENABLE_CLIENT_SIDE_PREDICTION
+	printf("Client-side prediction is enabled in this build.\n");
+	#endif
+	#ifdef ENABLE_SERVER_RECONCILLIATION
+	printf("Server reconcilliation is enabled in this build.\n");
+	#endif
+	
 	// Give me a socket, and make sure it's working:
 	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if (serverSocket == -1)
@@ -370,10 +396,10 @@ int main(int argc, char ** argv)
 		clientInput->clientNumber = currentPlayerNumber;
 	}
 
-	printf("Registered as: %u\n", currentPlayerNumber);
+	printf("Joined server as client: %u.\n", currentPlayerNumber);
 
 	// Configure the thread parameters:
-	struct threadParameters parameters;
+	struct ClientThreadParameters parameters;
 	parameters.state = currentState;
 	parameters.message = clientInput;
 	parameters.ipAddress = ipAddress;
@@ -383,6 +409,7 @@ int main(int argc, char ** argv)
 	parameters.inputBuffer->end = -1;
 	
 	// Create all of our threads:
+	pthread_t graphicsThread, networkThread, gameThread;
 	pthread_create(&gameThread, NULL, gameThreadHandler, &parameters);
 	pthread_create(&networkThread, NULL, networkHandler, &parameters);
 	pthread_create(&graphicsThread, NULL, graphicsThreadHandler, &parameters);
@@ -393,31 +420,37 @@ int main(int argc, char ** argv)
 		{
 			switch (currentMessage.type)
 			{
+				// Recieved a "GOODBYE" message:
 				case 1:
 				{
-					// We've been told to disconnect:
+					// Close the socket, and stop the client:
 					shutdown(serverSocket, SHUT_RDWR);
 					serverSocket = 0;
 					keepRunning = false;
+					
 					break;
 				}
+				// Recieved a "PING" message:
 				case 2:
 				{
-					// Pinged, so we now must pong.
+					// Setup and send a "PONG" message:
 					currentMessage.type = 3;
 					currentMessage.content = 0;
 					send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
+					
 					break;
 				}
 			}
 		}
+
+		// If we've lost connection for some reason:
 		else
 		{
-			// Say goodbye to the server:
+			// Setup a "GOODBYE" message:
 			currentMessage.type = 1;
 			currentMessage.content = 0;
 
-			// Send the goodbye message and shutdown:
+			// Send the "GOODBYE" message and shutdown the socket:
 			send(serverSocket, &currentMessage, sizeof(struct CsptMessage), 0);
 			shutdown(serverSocket, SHUT_RDWR);
 			serverSocket = 0;
