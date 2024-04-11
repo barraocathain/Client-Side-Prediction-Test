@@ -63,6 +63,20 @@ to work on improving the client and separating out the techniques so at the end
 just by changing preprocessor statements you'll be able to see the effects of
 each technique.
 
+** Entry 07: Server Reconcilliation:
+Adding that in made it really seem a lot smoother. Last thing I want to add to
+this for the moment is linear interpolation between states. Should make it
+smooth for bigger tests. 
+
+** Entry 08: Linear Interpolation:
+Added this mostly without incident, and my god did it improve things. It's very
+close to essentially being frame-perfect for a round-trip to my server and
+back. Should be excellent implemented in Spacewar! What I basically have is a
+netcode that uses dead-reckoning client-side prediction, server reconcilliation,
+and linear interpolation between states to make something fairly buttery smooth,
+although I haven't tested over longer distances yet, which I really should
+before declaring victory.
+
 * Notes On Techniques:
 ** Entry 00: Where I'm Learning All This From:
 I'm using a series of articles from gabrielgambetta.com, which seem to be well
